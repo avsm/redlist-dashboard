@@ -171,7 +171,7 @@ async function main() {
 
         console.log("\nPhase 3: fetch-col-checklist (curated CoL Checklist → demotion overlay)");
         console.log("═".repeat(60));
-        checklistTsv = await fetchColChecklist();
+        checklistTsv = await fetchColChecklist({ dataset: checklistInfo });
 
         console.log("\nPhase 4: build-backbone (→ backbone.parquet + species/ + vernacular-names.json)");
         console.log("═".repeat(60));
