@@ -5276,8 +5276,16 @@ export default function OccurrenceMapRow({
           {/* Bottom-left stack: which records are drawn, what they measure,
               then what each overlay's colours mean. Stacked in a column so a
               legend that only appears with its overlay can't land on top of
-              another. */}
-          <div className="absolute bottom-2 left-2 z-[1000] flex flex-col items-start gap-1.5 max-w-[90%]">
+              another.
+
+              Bounded to the map and scrolled, because the stack grows upwards
+              from the bottom and had nothing to stop it: every overlay on with
+              the biome and habitat keys expanded is around 785px of legend, so
+              on a short map — the split map/table view in a 720px window — the
+              top of it climbed out of the map entirely and the rows up there
+              were unreachable, there being nothing to scroll. Each panel keeps
+              its own size (`shrink-0`); it's the column that scrolls. */}
+          <div className="absolute bottom-2 left-2 z-[1000] flex flex-col items-start gap-1.5 max-w-[90%] max-h-[calc(100%-1rem)] overflow-y-auto overscroll-contain [&>*]:shrink-0">
           {!loadingOccurrences && mounted && renderRecordLayers(label)}
           {/* The measuring tool's running total. First in the stack because
               it's a live mode, not a legend. */}
