@@ -34,9 +34,25 @@ const VERSION = "v1.13";
  */
 export const DRIVERS_CANOPY_THRESHOLD = 30;
 
-export const FOREST_LOSS_DRIVERS_TILE_URL =
-  `https://tiles.globalforestwatch.org/wri_google_tree_cover_loss_drivers/${VERSION}/dynamic/{z}/{x}/{y}.png` +
-  `?implementation=default&tree_cover_density_threshold=${DRIVERS_CANOPY_THRESHOLD}`;
+/**
+ * Kept as a single template literal, deliberately.
+ *
+ * This was two literals joined with `+`, which reads better and was wrong in a
+ * way nothing here could see: every hole in it is a compile-time constant, so
+ * Turbopack's minifier folds the whole expression to one string — and in that
+ * folding it dropped the middle segment, shipping
+ * `…/wri_google_tree_cover_loss_drivers/v1.13?implementation=default&…` with
+ * `/dynamic/{z}/{x}/{y}.png` gone. Every tile request 404s, so the layer drew
+ * nothing at all in production while working perfectly in `next dev`, which
+ * doesn't minify. The tests below pass either way: vitest reads this module's
+ * source, never the bundle.
+ *
+ * The loss layer next door survived the same minifier because it builds its
+ * URL inside a function from a runtime `URLSearchParams`, which can't be
+ * folded. So: one literal, no `+`, and if this ever needs breaking up again,
+ * check the built chunk rather than the test.
+ */
+export const FOREST_LOSS_DRIVERS_TILE_URL = `https://tiles.globalforestwatch.org/wri_google_tree_cover_loss_drivers/${VERSION}/dynamic/{z}/{x}/{y}.png?implementation=default&tree_cover_density_threshold=${DRIVERS_CANOPY_THRESHOLD}`;
 
 /**
  * The data is 1 km, so drawing it past this is magnification rather than
