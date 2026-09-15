@@ -21,6 +21,12 @@ describe("the dominant-driver layer", () => {
   });
 
   it("keeps the {z}/{x}/{y} placeholders MapLibre fills in", () => {
+    // Worth knowing what this can't tell you: it reads the module's source,
+    // and the one time these placeholders actually went missing they went
+    // missing in the bundle — Turbopack's minifier dropped them while folding
+    // a `+` between two template literals, and this test passed throughout.
+    // See the note on FOREST_LOSS_DRIVERS_TILE_URL. Checking a change to that
+    // constant means checking the built chunk, not just this.
     expect(FOREST_LOSS_DRIVERS_TILE_URL).toContain("/{z}/{x}/{y}.png");
   });
 
