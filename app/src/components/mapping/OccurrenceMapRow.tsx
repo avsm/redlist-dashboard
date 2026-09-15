@@ -218,6 +218,57 @@ const PointFileDialog = dynamic(
   { ssr: false }
 );
 
+/**
+ * The overlay stack, bottom to top — and the reason it has to be written down.
+ *
+ * MapLibre draws layers in the order they were *added*, and react-map-gl adds
+ * a `<Layer>` when it mounts. Every overlay here mounts on a checkbox, so the
+ * order on screen was the order the boxes happened to be ticked, not the order
+ * the JSX is written in. That made the layers below silently wrong rather than
+ * broken: ticking tree cover loss after the drivers layer put a near-opaque
+ * sheet of pink over it, so "tree cover loss by dominant driver" appeared to do
+ * nothing at all — the one combination an assessor is most likely to try,
+ * since the drivers layer exists to answer the question the loss layer raises.
+ * The same applied to the habitat and protected-area rasters, and to the
+ * occurrence circles, which the rasters covered instead of the reverse.
+ *
+ * So the stack is declared once, here, and each layer names the band it
+ * belongs in. Each band is anchored by a hidden, always-mounted layer, and a
+ * layer joins its band with `beforeId`, which inserts it in the right place
+ * whatever order it mounted in. Within a band the mount order still decides,
+ * which is what the JSX order is for.
+ */
+const MAP_LAYER_SLOTS = [
+  /** Sampling effort: whether anyone has looked here. Under everything. */
+  "effort",
+  "ecoregions",
+  "habitat",
+  "forest-loss",
+  /** Above the loss it classifies — this is the layer that says why. */
+  "loss-drivers",
+  "protected-areas",
+  /** POWO/IUCN native range polygons. */
+  "ranges",
+  /** The nearby search's radius: the question's boundary, under its answers. */
+  "nearby-radius",
+  /** The species' own GBIF records. */
+  "records",
+  /** A picked neighbour's records, above this species' own. */
+  "nearby-points",
+  /** The assessor's own georeferences, above every published record. */
+  "georeferences",
+  /** EOO/AOO and measuring — always readable over the data they describe. */
+  "tools",
+] as const;
+
+type MapLayerSlot = (typeof MAP_LAYER_SLOTS)[number];
+
+/**
+ * The anchor that marks the top of a band. A layer passing this as `beforeId`
+ * lands immediately below it, and so above every band declared earlier.
+ */
+const slotId = (slot: MapLayerSlot, panelId: string) => `slot-${slot}-${panelId}`;
+
 // Shape of coordinate-cleaning-refdata/countries.json (Natural Earth admin-0
 // country polygons, keyed by ISO 3166-1 alpha-2), dynamically imported for the
 // POWO/IUCN native-range overlays.
@@ -4058,6 +4109,19 @@ export default function OccurrenceMapRow({
                   {renderRangeMetrics()}
                 </MapToolsMenu>
               ) : null}
+              {/* The bands of MAP_LAYER_SLOTS, as hidden anchors. They mount
+                  before any overlay and never unmount, so every layer below
+                  has something stable to position itself against however the
+                  checkboxes were ticked. `visibility: none` keeps them out of
+                  the render entirely — they only hold a place in the order. */}
+              {MAP_LAYER_SLOTS.map((slot) => (
+                <Layer
+                  key={slot}
+                  id={slotId(slot, panelId)}
+                  type="background"
+                  layout={{ visibility: "none" }}
+                />
+              ))}
               {/* Sampling effort — the very bottom of the stack. It answers
                   whether a blank area is empty because the species isn't there
                   or because nobody has looked, which is context for everything
@@ -4083,6 +4147,7 @@ export default function OccurrenceMapRow({
                 >
                   <Layer
                     id={`sampling-effort-layer-${panelId}`}
+                    beforeId={slotId("effort", panelId)}
                     type="raster"
                     paint={{ "raster-opacity": 0.6, "raster-fade-duration": 0 }}
                   />
@@ -4101,11 +4166,13 @@ export default function OccurrenceMapRow({
                 >
                   <Layer
                     id={`ecoregions-fill-${panelId}`}
+                    beforeId={slotId("ecoregions", panelId)}
                     type="fill"
                     paint={{ "fill-color": ["get", "biomeColor"], "fill-opacity": 0.22 }}
                   />
                   <Layer
                     id={`ecoregions-line-${panelId}`}
+                    beforeId={slotId("ecoregions", panelId)}
                     type="line"
                     paint={{ "line-color": ["get", "biomeColor"], "line-width": 1, "line-opacity": 0.9 }}
                   />
@@ -4118,16 +4185,19 @@ export default function OccurrenceMapRow({
                 <Source id={`ecoregion-highlight-${panelId}`} type="geojson" data={selectedEcoregionGeoJson}>
                   <Layer
                     id={`ecoregion-highlight-fill-${panelId}`}
+                    beforeId={slotId("ecoregions", panelId)}
                     type="fill"
                     paint={{ "fill-color": "#059669", "fill-opacity": 0.18 }}
                   />
                   <Layer
                     id={`ecoregion-highlight-casing-${panelId}`}
+                    beforeId={slotId("ecoregions", panelId)}
                     type="line"
                     paint={{ "line-color": "#ffffff", "line-width": 4.5, "line-opacity": 0.9 }}
                   />
                   <Layer
                     id={`ecoregion-highlight-line-${panelId}`}
+                    beforeId={slotId("ecoregions", panelId)}
                     type="line"
                     paint={{ "line-color": "#059669", "line-width": 2 }}
                   />
@@ -4144,7 +4214,12 @@ export default function OccurrenceMapRow({
                   tileSize={256}
                   attribution={HABITAT_ATTRIBUTION}
                 >
-                  <Layer id={`habitat-layer-${panelId}`} type="raster" paint={{ "raster-opacity": 0.55 }} />
+                  <Layer
+                    id={`habitat-layer-${panelId}`}
+                    beforeId={slotId("habitat", panelId)}
+                    type="raster"
+                    paint={{ "raster-opacity": 0.55 }}
+                  />
                 </Source>
               )}
               {/* Global Forest Watch tree cover loss, year-coded. Above the
@@ -4169,6 +4244,7 @@ export default function OccurrenceMapRow({
                       pink the old ramp was rotated into. */}
                   <Layer
                     id={`forest-loss-layer-${panelId}`}
+                    beforeId={slotId("forest-loss", panelId)}
                     type="raster"
                     paint={{ "raster-opacity": 0.85 }}
                   />
@@ -4187,7 +4263,12 @@ export default function OccurrenceMapRow({
                   maxzoom={FOREST_LOSS_DRIVERS_MAX_ZOOM}
                   attribution={FOREST_LOSS_DRIVERS_ATTRIBUTION}
                 >
-                  <Layer id={`loss-drivers-layer-${panelId}`} type="raster" paint={{ "raster-opacity": 0.85 }} />
+                  <Layer
+                    id={`loss-drivers-layer-${panelId}`}
+                    beforeId={slotId("loss-drivers", panelId)}
+                    type="raster"
+                    paint={{ "raster-opacity": 0.85 }}
+                  />
                 </Source>
               )}
               {/* Protected areas overlay (WDPA) — rendered before the occurrence
@@ -4206,6 +4287,7 @@ export default function OccurrenceMapRow({
                       basemap. See PROTECTED_AREAS_HUE_ROTATION. */}
                   <Layer
                     id={`wdpa-layer-${panelId}`}
+                    beforeId={slotId("protected-areas", panelId)}
                     type="raster"
                     paint={{
                       "raster-opacity": 0.55,
@@ -4224,6 +4306,7 @@ export default function OccurrenceMapRow({
                 <Source id={`wdpa-highlight-${panelId}`} type="geojson" data={highlightedAreaGeoJson}>
                   <Layer
                     id={`wdpa-highlight-fill-${panelId}`}
+                    beforeId={slotId("protected-areas", panelId)}
                     type="fill"
                     paint={{
                       "fill-color": ["get", "colour"],
@@ -4235,11 +4318,13 @@ export default function OccurrenceMapRow({
                   />
                   <Layer
                     id={`wdpa-highlight-casing-${panelId}`}
+                    beforeId={slotId("protected-areas", panelId)}
                     type="line"
                     paint={{ "line-color": "#ffffff", "line-width": 4.5, "line-opacity": 0.9 }}
                   />
                   <Layer
                     id={`wdpa-highlight-line-${panelId}`}
+                    beforeId={slotId("protected-areas", panelId)}
                     type="line"
                     paint={{
                       "line-color": ["get", "colour"],
@@ -4254,20 +4339,40 @@ export default function OccurrenceMapRow({
                   since both can be shown at once to compare them directly. */}
               {showPowoRangeOverlay && powoRangeGeoJson && (
                 <Source id={`powo-range-${panelId}`} type="geojson" data={powoRangeGeoJson}>
-                  <Layer id={`powo-range-fill-${panelId}`} type="fill" paint={{ "fill-color": "#3b82f6", "fill-opacity": 0.25 }} />
-                  <Layer id={`powo-range-line-${panelId}`} type="line" paint={{ "line-color": "#2563eb", "line-width": 1 }} />
+                  <Layer
+                    id={`powo-range-fill-${panelId}`}
+                    beforeId={slotId("ranges", panelId)}
+                    type="fill"
+                    paint={{ "fill-color": "#3b82f6", "fill-opacity": 0.25 }}
+                  />
+                  <Layer
+                    id={`powo-range-line-${panelId}`}
+                    beforeId={slotId("ranges", panelId)}
+                    type="line"
+                    paint={{ "line-color": "#2563eb", "line-width": 1 }}
+                  />
                 </Source>
               )}
               {showIucnRangeOverlay && iucnRangeGeoJson && (
                 <Source id={`iucn-range-${panelId}`} type="geojson" data={iucnRangeGeoJson}>
-                  <Layer id={`iucn-range-fill-${panelId}`} type="fill" paint={{ "fill-color": "#f59e0b", "fill-opacity": 0.25 }} />
-                  <Layer id={`iucn-range-line-${panelId}`} type="line" paint={{ "line-color": "#d97706", "line-width": 1 }} />
+                  <Layer
+                    id={`iucn-range-fill-${panelId}`}
+                    beforeId={slotId("ranges", panelId)}
+                    type="fill"
+                    paint={{ "fill-color": "#f59e0b", "fill-opacity": 0.25 }}
+                  />
+                  <Layer
+                    id={`iucn-range-line-${panelId}`}
+                    beforeId={slotId("ranges", panelId)}
+                    type="line"
+                    paint={{ "line-color": "#d97706", "line-width": 1 }}
+                  />
                 </Source>
               )}
               {/* Occurrence circles (GeoJSON source + circle layer) */}
               {showGbif && (
                 <Source id={`occurrences-${panelId}`} type="geojson" data={styledGeoJson}>
-                  <Layer {...circleLayerStyle} />
+                  <Layer {...circleLayerStyle} beforeId={slotId("records", panelId)} />
                 </Source>
               )}
               {/* The IUCN point file, when one is loaded — the assessment's
@@ -4303,6 +4408,7 @@ export default function OccurrenceMapRow({
                         you are looking at. */}
                     <Layer
                       id={`nearby-radius-fill-${panelId}`}
+                      beforeId={slotId("nearby-radius", panelId)}
                       type="fill"
                       paint={{
                         "fill-color": NEARBY_SEARCH_COLOR,
@@ -4311,6 +4417,7 @@ export default function OccurrenceMapRow({
                     />
                     <Layer
                       id={`nearby-radius-line-${panelId}`}
+                      beforeId={slotId("nearby-radius", panelId)}
                       type="line"
                       paint={{
                         "line-color": NEARBY_SEARCH_COLOR,
@@ -4324,6 +4431,7 @@ export default function OccurrenceMapRow({
                         something anyone can catch. */}
                     <Layer
                       id={`nearby-radius-grab-${panelId}`}
+                      beforeId={slotId("nearby-radius", panelId)}
                       type="line"
                       paint={{ "line-color": NEARBY_SEARCH_COLOR, "line-width": 14, "line-opacity": 0.01 }}
                     />
@@ -4340,6 +4448,7 @@ export default function OccurrenceMapRow({
                       thing rather than merging into the points underneath. */}
                   <Layer
                     id={`nearby-points-circle-${panelId}`}
+                    beforeId={slotId("nearby-points", panelId)}
                     type="circle"
                     paint={{
                       "circle-radius": 4.5,
@@ -4432,11 +4541,13 @@ export default function OccurrenceMapRow({
                   <Source id={`georef-circles-${panelId}`} type="geojson" data={georeferenceCirclesGeoJson}>
                     <Layer
                       id={`georef-circle-fill-${panelId}`}
+                      beforeId={slotId("georeferences", panelId)}
                       type="fill"
                       paint={{ "fill-color": "#7c3aed", "fill-opacity": 0.12 }}
                     />
                     <Layer
                       id={`georef-circle-line-${panelId}`}
+                      beforeId={slotId("georeferences", panelId)}
                       type="line"
                       paint={{ "line-color": "#7c3aed", "line-width": 1, "line-dasharray": [2, 2] }}
                     />
@@ -4757,18 +4868,25 @@ export default function OccurrenceMapRow({
                   type="geojson"
                   data={{ type: "Feature", properties: {}, geometry: rangeMetrics.eoo.hull }}
                 >
-                  <Layer id={`eoo-fill-${panelId}`} type="fill" paint={{ "fill-color": "#0ea5e9", "fill-opacity": 0.12 }} />
+                  <Layer
+                    id={`eoo-fill-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
+                    type="fill"
+                    paint={{ "fill-color": "#0ea5e9", "fill-opacity": 0.12 }}
+                  />
                   {/* A white casing under the hull, as the protected-area
                       highlights use: a dark blue line on dark imagery was a
                       line you had to know was there to find, and imagery is a
                       click away whatever the map opens on. */}
                   <Layer
                     id={`eoo-casing-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="line"
                     paint={{ "line-color": "#ffffff", "line-width": 4.5, "line-opacity": 0.85 }}
                   />
                   <Layer
                     id={`eoo-line-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="line"
                     paint={{ "line-color": "#0369a1", "line-width": 2.25, "line-dasharray": [3, 2] }}
                   />
@@ -4791,9 +4909,15 @@ export default function OccurrenceMapRow({
                       a 2 km cell is a few pixels across at range-wide zooms,
                       and at 0.6px of dark navy over dark ground the grid that
                       the AOO figure counts was invisible. */}
-                  <Layer id={`aoo-fill-${panelId}`} type="fill" paint={{ "fill-color": "#0ea5e9", "fill-opacity": 0.45 }} />
+                  <Layer
+                    id={`aoo-fill-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
+                    type="fill"
+                    paint={{ "fill-color": "#0ea5e9", "fill-opacity": 0.45 }}
+                  />
                   <Layer
                     id={`aoo-line-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="line"
                     paint={{ "line-color": "#ffffff", "line-width": 1.1, "line-opacity": 0.9 }}
                   />
@@ -4841,18 +4965,21 @@ export default function OccurrenceMapRow({
                 >
                   <Layer
                     id={`measure-casing-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="line"
                     filter={["==", ["geometry-type"], "LineString"]}
                     paint={{ "line-color": "#ffffff", "line-width": 5, "line-opacity": 0.9 }}
                   />
                   <Layer
                     id={`measure-line-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="line"
                     filter={["==", ["geometry-type"], "LineString"]}
                     paint={{ "line-color": "#111827", "line-width": 2, "line-dasharray": [2, 1.5] }}
                   />
                   <Layer
                     id={`measure-points-${panelId}`}
+                    beforeId={slotId("tools", panelId)}
                     type="circle"
                     filter={["==", ["geometry-type"], "Point"]}
                     paint={{
