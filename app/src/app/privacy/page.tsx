@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy policy",
   description:
-    "How this dashboard uses anonymous, cookieless usage analytics, and the optional session recording signed-in users can opt in to.",
+    "How this dashboard uses anonymous, cookieless usage analytics, and what it stores if you sign in.",
 };
 
 export default function PrivacyPage() {
@@ -41,12 +41,11 @@ export default function PrivacyPage() {
           >
             PostHog
           </a>{" "}
-          (hosted in the EU). By default this data is not linked to your
-          identity, even if you are signed in, and we do <strong>not</strong>{" "}
-          use analytics cookies or store any analytics identifier on your
-          device &mdash; which is why you see no cookie banner. The one
-          exception is session recording, which is off unless you switch it on;
-          see below. We also use{" "}
+          (hosted in the EU). This data is not linked to your identity, even if
+          you are signed in, and we do <strong>not</strong> use analytics
+          cookies or store any analytics identifier on your device &mdash; which
+          is why you see no cookie banner. We do not record your screen. We also
+          use{" "}
           <a
             href="https://sentry.io"
             target="_blank"
@@ -55,12 +54,9 @@ export default function PrivacyPage() {
           >
             Sentry
           </a>{" "}
-          to record technical error reports so we can fix problems. If you have
-          turned session recording on (see below), those error reports are
-          linked to your account and to the recording of what you were doing
-          when the error happened, so we can see what caused it; if you
-          have not, they carry only a temporary id that exists for that
-          one visit and identifies nobody.
+          to record technical error reports so we can fix problems. Those
+          reports carry only a temporary id that exists for that one visit and
+          identifies nobody.
         </p>
 
         <p>
@@ -106,38 +102,10 @@ export default function PrivacyPage() {
         </p>
 
         <p>
-          <strong>Session recording (optional, off by default).</strong> If you
-          are signed in, you can choose to let us record how you use the
-          dashboard: the pages you open, the searches and filters you use, and a
-          replay of what happened on your screen &mdash; where you moved, clicked
-          and scrolled &mdash; linked to your account. We use it only to find
-          the places where the dashboard is confusing or broken, and to see
-          which features are actually used. This is entirely optional and is{" "}
-          <strong>off unless you turn it on</strong>: nothing is recorded until
-          you agree, you do not need to agree to use any part of the site, and
-          you can switch it off again at any time from the account menu (your
-          avatar, top right), which stops recording immediately and removes the
-          identifier from your device. Turning it on stores an analytics
-          identifier on your device &mdash; the part that needs your permission,
-          and the reason we ask. Recordings are held by PostHog in the EU.
-          Passwords are never captured. To have past recordings deleted, email{" "}
-          <a
-            href="mailto:sw984@cam.ac.uk"
-            className="underline hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            sw984@cam.ac.uk
-          </a>
-          .
-        </p>
-
-        <p>
           <strong>Why.</strong> We process the anonymous analytics under our
           legitimate interest in maintaining and improving a public research
           tool, and &mdash; for account details &mdash; in offering sign-in at
-          all. Session recording is different: we rely on your consent, which is
-          why it is off until you give it and why withdrawing it takes effect
-          straight away. We do not sell any of this data or use it for
-          advertising.
+          all. We do not sell any of this data or use it for advertising.
         </p>
 
         <p>

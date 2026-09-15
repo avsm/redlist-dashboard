@@ -7,7 +7,6 @@ import { ThemeProvider } from "../components/ThemeProvider";
 import { BrandProvider } from "../components/BrandProvider";
 import { MeProvider } from "../components/MeProvider";
 import { PostHogProvider } from "../components/PostHogProvider";
-import { AnalyticsConsentPrompt } from "../components/AnalyticsConsentPrompt";
 import { brandForHost } from "../config/brand";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -47,15 +46,9 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <BrandProvider brand={brand}>
-          {/* MeProvider wraps PostHogProvider because the latter reads the
-              signed-in user's analytics consent from it to decide whether to
-              record (#524). */}
           <MeProvider>
             <PostHogProvider>
-              <ThemeProvider>
-                {children}
-                <AnalyticsConsentPrompt />
-              </ThemeProvider>
+              <ThemeProvider>{children}</ThemeProvider>
             </PostHogProvider>
           </MeProvider>
         </BrandProvider>

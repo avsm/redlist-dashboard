@@ -5,13 +5,12 @@ import posthog from "posthog-js";
  * actually reach for.
  *
  * These events are ANONYMOUS for everyone and need no consent. PostHog runs in
- * `persistence: "memory"` by default (see components/PostHogProvider.tsx) — no
- * identifier is stored on the device, so nothing here is tied to a person. That
- * is deliberate rather than incidental: gating these behind the session-replay
- * consent would have limited the answer to "which filters are popular?" to the
- * small consenting slice of signed-in users, when the useful answer covers
- * everyone. A user who has opted in to replay is identified, so their events
- * attach to them — that is the consent they gave.
+ * `persistence: "memory"` (see components/PostHogProvider.tsx) — no identifier
+ * is stored on the device, so nothing here is tied to a person. That is
+ * deliberate rather than incidental, and it is why these events survived the
+ * removal of session recording in #537: they were never the part that needed
+ * asking permission for, and they answer "which filters are popular?" across
+ * all traffic rather than a signed-in slice of it.
  *
  * Values are captured only where a value is low-cardinality and about a
  * *species*, never about a person — see FILTER_VALUE_SAFE.
