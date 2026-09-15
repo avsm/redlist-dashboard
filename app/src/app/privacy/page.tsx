@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy policy",
   description:
-    "How this dashboard uses anonymous, cookieless usage analytics, and what it stores if you sign in.",
+    "How this dashboard uses anonymous, cookieless usage analytics.",
 };
 
 export default function PrivacyPage() {
@@ -42,10 +42,9 @@ export default function PrivacyPage() {
             PostHog
           </a>{" "}
           (hosted in the EU). This data is not linked to your identity, even if
-          you are signed in, and we do <strong>not</strong> use analytics
-          cookies or store any analytics identifier on your device &mdash; which
-          is why you see no cookie banner. We do not record your screen. We also
-          use{" "}
+          you are signed in. We do <strong>not</strong> use analytics cookies or
+          store any analytics identifier on your device, so no cookie banner is
+          needed. We also use{" "}
           <a
             href="https://sentry.io"
             target="_blank"
@@ -54,9 +53,7 @@ export default function PrivacyPage() {
           >
             Sentry
           </a>{" "}
-          to record technical error reports so we can fix problems. Those
-          reports carry only a temporary id that exists for that one visit and
-          identifies nobody.
+          to record technical error reports so we can fix problems.
         </p>
 
         <p>
@@ -102,10 +99,10 @@ export default function PrivacyPage() {
         </p>
 
         <p>
-          <strong>Why.</strong> We process the anonymous analytics under our
-          legitimate interest in maintaining and improving a public research
-          tool, and &mdash; for account details &mdash; in offering sign-in at
-          all. We do not sell any of this data or use it for advertising.
+          <strong>Why.</strong> We process this data under our legitimate
+          interest in maintaining and improving a public research tool, and — for
+          account details — in offering sign-in at all. We do not sell it or use
+          it for advertising.
         </p>
 
         <p>
