@@ -77,10 +77,21 @@ describe("buildGeneralIssueUrl", () => {
     expect(new URL(buildGeneralIssueUrl()).searchParams.get("title")).toBeNull();
   });
 
-  it("prefills only a prompt, not words in the reporter's mouth", () => {
+  // A new issue in your own repo only notifies you if you're watching it; the
+  // @-mention is what actually reaches the maintainer.
+  it("opens by mentioning the maintainer, by exact GitHub login", () => {
+    const body = new URL(buildGeneralIssueUrl()).searchParams.get("body")!;
+    expect(body.split("\n")[0]).toBe(
+      "Hi @shaneweisz, I've got some feedback and/or a feature request about the dashboard."
+    );
+  });
+
+  it("prefills a greeting and a prompt, but no words in the reporter's mouth", () => {
     const body = new URL(buildGeneralIssueUrl()).searchParams.get("body")!;
     expect(body).toContain("a sentence is plenty");
-    expect(body.replace(/<!--[\s\S]*?-->/g, "").trim()).toBe("");
+    // Nothing beyond the greeting line and the commented-out prompt.
+    const visible = body.replace(/<!--[\s\S]*?-->/g, "").split("\n").filter((l) => l.trim());
+    expect(visible).toHaveLength(1);
   });
 
   it("records the page the reader was on when given one", () => {
