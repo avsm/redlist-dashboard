@@ -24,8 +24,8 @@ import type { ColProvenance } from "@/app/api/col/provenance/route";
 import { parseAssessors, parseInstitutions } from "@/lib/parseAssessors";
 import { iucnRegionCountries, matchingRegions } from "@/lib/regions";
 import { useFilterParams, isScopeLayout, type SortField, type MapViewMode } from "@/hooks/useFilterParams";
-import RealmCards from "@/components/redlist/RealmCards";
-import type { RealmStats } from "@/lib/data/scoped-taxa-summary-duckdb";
+import RealmBars from "@/components/redlist/RealmBars";
+import type { RealmStatsResponse } from "@/lib/data/scoped-taxa-summary-duckdb";
 import { HABITAT_CATEGORIES } from "@/lib/habitat-classification";
 import { readViewPreference, writeViewPreference } from "@/lib/view-preference";
 import { parseHabitatEntries, matchesHabitatFilter as matchesHabitatCriteria, coarseKnownCategories, isRestrictiveSelection, ALL_HABITAT_SEASONS, ALL_HABITAT_IMPORTANCE, ALL_HABITAT_SUITABILITY } from "@/lib/habitat-filter";
@@ -3712,16 +3712,17 @@ export default function RedListView({ viewMode = "reassessments", onViewModeChan
       .catch(() => {});
   }, [layoutMode, countryLandingStats]);
 
-  // Realm view's landing cards — three numbers from one live GROUP BY
-  // (/api/redlist/realm-stats), fetched once per session on entering the view.
-  // Same reasoning as countryLandingStats above: aggregating these client-side
-  // would mean downloading the whole assessed-species dataset for three totals.
-  const [realmLandingStats, setRealmLandingStats] = useState<RealmStats[] | null>(null);
+  // Realm view's landing chart — three numbers plus their denominator from one
+  // live GROUP BY (/api/redlist/realm-stats), fetched once per session on
+  // entering the view. Same reasoning as countryLandingStats above: aggregating
+  // these client-side would mean downloading the whole assessed-species dataset
+  // for three totals.
+  const [realmLandingStats, setRealmLandingStats] = useState<RealmStatsResponse | null>(null);
   useEffect(() => {
     if (layoutMode !== "realm" || realmLandingStats) return;
     fetch("/api/redlist/realm-stats")
       .then(res => (res.ok ? res.json() : null))
-      .then(data => { if (data?.realms) setRealmLandingStats(data.realms); })
+      .then(data => { if (data?.realms) setRealmLandingStats({ realms: data.realms, totalAssessed: data.totalAssessed ?? 0 }); })
       .catch(() => {});
   }, [layoutMode, realmLandingStats]);
 
@@ -3747,18 +3748,19 @@ export default function RedListView({ viewMode = "reassessments", onViewModeChan
     [enterRealmDrilldown]
   );
 
-  // Spinner card sized like the real cards (not a bare spinner) so swapping in
-  // the loaded state doesn't shift the taxa table below it — same reasoning as
+  // Placeholder sized like the loaded chart (not a bare spinner) so swapping in
+  // the real bars doesn't shift the taxa table below it — same reasoning as
   // countryModeContent's own placeholder.
   const realmModeContent = realmLandingStats ? (
-    <RealmCards realms={realmLandingStats} selected={selectedSystems} onSelect={handleRealmDrilldown} />
+    <RealmBars
+      realms={realmLandingStats.realms}
+      totalAssessed={realmLandingStats.totalAssessed}
+      selected={selectedSystems}
+      onSelect={handleRealmDrilldown}
+    />
   ) : (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      {[0, 1, 2].map(i => (
-        <div key={i} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 h-[148px] flex items-center justify-center">
-          <Spinner className="h-6 w-6" />
-        </div>
-      ))}
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 h-[116px] flex items-center justify-center">
+      <Spinner className="h-6 w-6" />
     </div>
   );
 

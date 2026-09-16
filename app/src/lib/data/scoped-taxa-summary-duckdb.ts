@@ -117,20 +117,28 @@ export interface RealmStats {
   outdated: number;
 }
 
+export interface RealmStatsResponse {
+  realms: RealmStats[];
+  /** Every assessed species, counted once — the denominator the bars' shares use. */
+  totalAssessed: number;
+}
+
 /**
- * Per-realm totals across all assessed species — the Realm view's landing cards.
+ * Per-realm totals across all assessed species — the Realm view's landing chart.
  * The country equivalent (getCountryStats) reads a precomputed JSON because there
  * are ~200 countries and the landing map needs every one of them; realm has three
  * values and one GROUP BY answers all of them at once, so this stays live rather
  * than adding a fourth build artifact to the weekly sync that could drift.
  *
  * A species assessed as e.g. "Freshwater;Marine" counts once toward BOTH realms
- * here — that's what the unnest does, and it's the honest reading of a card that
- * says "N marine species assessed". It does mean the three cards sum to more than
- * the total number of assessments (1,877 species are in two realms or three), so
- * they're deliberately never presented as a share of one whole.
+ * here — that's what the unnest does, and it's the honest reading of a bar that
+ * says "N marine species assessed". It does mean the three bars sum to more than
+ * totalAssessed (1,877 species are in two realms or three), and so that their
+ * shares of it sum to more than 100% — which is why totalAssessed is returned
+ * explicitly as the denominator rather than left to be inferred by summing the
+ * bars, and why the chart says so on its face.
  */
-export async function getRealmStats(): Promise<RealmStats[]> {
+export async function getRealmStats(): Promise<RealmStatsResponse> {
   const conn = await getConn();
   const cutoff = outdatedCutoffDate().toISOString().slice(0, 10);
   const assessedUri = parquetUri("assessed.parquet");
@@ -152,7 +160,7 @@ export async function getRealmStats(): Promise<RealmStats[]> {
   // each of the three (a realm with no assessments at all is a real 0, not a
   // missing card) and any unexpected value in the column is ignored rather than
   // rendered as a fourth card.
-  return REALMS.map((realm) => {
+  const realms = REALMS.map((realm) => {
     const row = byRealm.get(realm);
     return {
       realm,
@@ -160,6 +168,14 @@ export async function getRealmStats(): Promise<RealmStats[]> {
       outdated: row ? Number(row.n_outdated) : 0,
     };
   });
+
+  // Separate query, not a sum of the above: the unnest counts a multi-realm
+  // species once per realm, so summing `realms` would overcount the total.
+  const totalRow = (await conn.runAndReadAll(
+    `SELECT count(*) AS n FROM '${assessedUri}'`
+  )).getRowObjects();
+
+  return { realms, totalAssessed: Number(totalRow[0]?.n ?? 0) };
 }
 
 /**

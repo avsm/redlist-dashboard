@@ -1566,7 +1566,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     setHiddenColumns(new Set(FOCUS_HIDDEN[mode]));
   };
 
-  const visibleColCount = 1 + (Object.keys(COLUMN_LABELS) as ColumnId[]).filter(isVisible).length + (scopeStyleColumns ? 1 : 0);
+  const visibleColCount = 1 + (Object.keys(COLUMN_LABELS) as ColumnId[]).filter(isVisible).length;
 
   // Close column menu on outside click
   useEffect(() => {
@@ -2051,6 +2051,17 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     );
   };
 
+  // Scope views (Country/Realm) put the outdated COUNT and its PERCENTAGE in one
+  // column rather than two adjacent ones. They're two readings of a single fact
+  // and were always read together — and the plain (non-scope) table already
+  // renders them as one cell, so two columns here was the odd one out.
+  const renderScopedOutdated = (outdated: number, percent: number, textClass: string) => (
+    <div className="flex items-center justify-end gap-2">
+      <span className={`${textClass} tabular-nums`}>{outdated.toLocaleString()}</span>
+      {renderCompactPercentBar(percent)}
+    </div>
+  );
+
   // Render a percentage bar (optionally with a count label above).
   //
   // `flagOver100` opts a column into the over-100% note. Only # Red List Assessed
@@ -2335,18 +2346,9 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             {!available ? (
               <span className="text-sm md:text-base text-zinc-400">—</span>
             ) : scopeStyleColumns ? (
-              <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{outdated.toLocaleString()}</span>
+              renderScopedOutdated(outdated, percentOutdated, "text-sm md:text-base text-zinc-700 dark:text-zinc-300")
             ) : (
               renderBar(percentOutdated, getOutdatedBarColor(percentOutdated), isAllRow, outdated)
-            )}
-          </td>
-        )}
-        {scopeStyleColumns && (
-          <td className={numericTdNoDividerClasses}>
-            {available ? (
-              renderCompactPercentBar(percentOutdated)
-            ) : (
-              <span className="text-sm md:text-base text-zinc-400">—</span>
             )}
           </td>
         )}
@@ -2669,18 +2671,9 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
               {sg.totalAssessed === 0 ? (
                 <span className="text-sm text-zinc-400">—</span>
               ) : scopeStyleColumns ? (
-                <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{sg.outdated.toLocaleString()}</span>
+                renderScopedOutdated(sg.outdated, sgPctOutdated, "text-sm text-zinc-600 dark:text-zinc-400")
               ) : (
                 renderBar(sgPctOutdated, getOutdatedBarColor(sgPctOutdated), false, sg.outdated)
-              )}
-            </td>
-          )}
-          {scopeStyleColumns && (
-            <td className={numericTdNoDividerClasses}>
-              {sg.totalAssessed > 0 ? (
-                renderCompactPercentBar(sgPctOutdated)
-              ) : (
-                <span className="text-sm text-zinc-400">—</span>
               )}
             </td>
           )}
@@ -2786,18 +2779,9 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
               {!taxon.available ? (
                 <span className="text-sm text-zinc-400">—</span>
               ) : scopeStyleColumns ? (
-                <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{taxon.outdated.toLocaleString()}</span>
+                renderScopedOutdated(taxon.outdated, taxon.percentOutdated, "text-sm md:text-base text-zinc-700 dark:text-zinc-300")
               ) : (
                 renderBar(taxon.percentOutdated, getOutdatedBarColor(taxon.percentOutdated), false, taxon.outdated)
-              )}
-            </td>
-          )}
-          {scopeStyleColumns && (
-            <td className={numericTdNoDividerClasses}>
-              {taxon.available ? (
-                renderCompactPercentBar(taxon.percentOutdated)
-              ) : (
-                <span className="text-sm text-zinc-400">—</span>
               )}
             </td>
           )}
@@ -2909,9 +2893,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             )}
           </th>
         )}
-        {scopeStyleColumns && (
-          <th className={numericThNoDividerClasses}>% Needs Updating</th>
-        )}
+
         {isVisible("gbifUnassessed") && (
           <th className={centeredThClasses}># Unassessed, 1+ GBIF Obs</th>
         )}
