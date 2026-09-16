@@ -1823,8 +1823,35 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
 
   // Shared flat-table data source for whichever mode (Table 1a / SSC groups) is active
   const flatMode = table1aMode || sscMode;
-  const flatData = table1aMode ? table1aData : sscData;
+  const flatDataAll = table1aMode ? table1aData : sscData;
   const flatLoading = table1aMode ? table1aLoading : sscLoading;
+
+  // SSC groups mode only: a free-text filter over the ~100 specialist group rows.
+  // Table 1a's handful of rows fit on one screen and need no filter, so the box
+  // isn't offered there — and the query is cleared on leaving SSC mode so coming
+  // back doesn't land on a mysteriously short table.
+  const [groupFilter, setGroupFilter] = useState("");
+  useEffect(() => { if (!sscMode) setGroupFilter(""); }, [sscMode]);
+
+  // Matching a SECTION title keeps that whole section (typing "invertebrates"
+  // shows every invertebrate group), while matching row names keeps just those
+  // rows; a section left with no rows drops out entirely rather than rendering a
+  // header with nothing under it. Filtering here, before the render, means the
+  // section subtotals recompute over exactly the rows on screen instead of
+  // silently continuing to describe the unfiltered set.
+  const flatData = useMemo(() => {
+    const q = groupFilter.trim().toLowerCase();
+    if (!sscMode || !q || !flatDataAll) return flatDataAll;
+    return flatDataAll.flatMap((section) => {
+      if (section.title.toLowerCase().includes(q)) return [section];
+      const rows = section.rows.filter((r) => r.name.toLowerCase().includes(q));
+      return rows.length ? [{ ...section, rows }] : [];
+    });
+  }, [flatDataAll, groupFilter, sscMode]);
+
+  const groupFilterActive = sscMode && groupFilter.trim().length > 0;
+  const shownGroupCount = flatData?.reduce((n, s) => n + s.rows.length, 0) ?? 0;
+  const totalGroupCount = flatDataAll?.reduce((n, s) => n + s.rows.length, 0) ?? 0;
 
   // table1aData/sscData/subgroupData are fetch-once caches keyed only by mode/nodeId,
   // not by country — without this, switching countries while table1a/ssc data (or an
@@ -2993,6 +3020,26 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             below. Country mode already gets its gap from the real grid box's
             own mb-4 (see the ternary a few lines up), so skip it here to avoid
             doubling up. */}
+        {/* Sits directly above the table rather than next to the View dropdown
+            (which lives below it) — a filter box is only useful within reach of
+            the rows it filters. */}
+        {sscMode && (
+          <div className="mb-2 flex items-center gap-3">
+            <input
+              type="search"
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              placeholder="Filter specialist groups — e.g. sponge"
+              aria-label="Filter specialist groups"
+              className="w-full max-w-xs text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md px-3 py-1.5 text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {groupFilterActive && (
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 tabular-nums">
+                {shownGroupCount.toLocaleString()} of {totalGroupCount.toLocaleString()} groups
+              </span>
+            )}
+          </div>
+        )}
         <div ref={scrollRef} className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-x-auto ${countryMode ? "flex-1 [zoom:.75]" : "mb-4"}`}>
           <table className="w-full">
             {renderHead()}
@@ -3009,6 +3056,12 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
                     </svg>
                     {table1aMode ? "Loading Table 1a data…" : "Loading SSC groups data…"}
                   </div>
+                </td>
+              </tr>
+            ) : flatData && flatData.length === 0 && groupFilterActive ? (
+              <tr>
+                <td colSpan={visibleColCount} className={`${cellPad} text-center text-sm text-zinc-400 py-6`}>
+                  No specialist group matches “{groupFilter.trim()}”.
                 </td>
               </tr>
             ) : flatData ? (
