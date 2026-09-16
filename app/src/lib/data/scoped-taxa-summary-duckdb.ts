@@ -109,6 +109,59 @@ export function outdatedSql(cutoffIso: string): string {
   return `(assessment_date IS NULL OR CAST(assessment_date AS DATE) <= CAST('${cutoffIso}' AS DATE))`;
 }
 
+export interface RealmStats {
+  realm: Realm;
+  /** Assessed species whose `systems` includes this realm. */
+  species: number;
+  /** ...of which are due a reassessment (the same >10yr cutoff the rest of the app uses). */
+  outdated: number;
+}
+
+/**
+ * Per-realm totals across all assessed species — the Realm view's landing cards.
+ * The country equivalent (getCountryStats) reads a precomputed JSON because there
+ * are ~200 countries and the landing map needs every one of them; realm has three
+ * values and one GROUP BY answers all of them at once, so this stays live rather
+ * than adding a fourth build artifact to the weekly sync that could drift.
+ *
+ * A species assessed as e.g. "Freshwater;Marine" counts once toward BOTH realms
+ * here — that's what the unnest does, and it's the honest reading of a card that
+ * says "N marine species assessed". It does mean the three cards sum to more than
+ * the total number of assessments (1,877 species are in two realms or three), so
+ * they're deliberately never presented as a share of one whole.
+ */
+export async function getRealmStats(): Promise<RealmStats[]> {
+  const conn = await getConn();
+  const cutoff = outdatedCutoffDate().toISOString().slice(0, 10);
+  const assessedUri = parquetUri("assessed.parquet");
+  // The unnest has to happen in a subquery: DuckDB can't GROUP BY an UNNEST
+  // directly ("Binder Error: Cannot group on an UNNEST or UNLIST clause").
+  const rows = (await conn.runAndReadAll(
+    `SELECT realm, count(*) AS n,
+            sum(CASE WHEN ${outdatedSql(cutoff)} THEN 1 ELSE 0 END) AS n_outdated
+     FROM (
+       SELECT unnest(string_split(systems, ';')) AS realm, assessment_date
+       FROM '${assessedUri}'
+       WHERE systems IS NOT NULL AND systems <> ''
+     )
+     GROUP BY realm`
+  )).getRowObjects();
+
+  const byRealm = new Map(rows.map((r) => [String(r.realm), r]));
+  // Driven off REALMS, not off the query results, so a card is always emitted for
+  // each of the three (a realm with no assessments at all is a real 0, not a
+  // missing card) and any unexpected value in the column is ignored rather than
+  // rendered as a fourth card.
+  return REALMS.map((realm) => {
+    const row = byRealm.get(realm);
+    return {
+      realm,
+      species: row ? Number(row.n) : 0,
+      outdated: row ? Number(row.n_outdated) : 0,
+    };
+  });
+}
+
 /**
  * Scoped equivalent of getTaxaSummary() — one row per Table 1a taxon_group,
  * mirroring build-taxa-summary.ts's pass 1 (a group is its whole CSV file, no

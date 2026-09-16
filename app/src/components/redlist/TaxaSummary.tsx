@@ -19,6 +19,7 @@ import { IUCN_SOURCE_URL } from "@/config/taxonomy-tree";
 import { isLiveDrilldownNode, nextDynamicRank, isDynamicNodeId, dynamicNodeDisplayName, dynamicNodeFilter, dynamicNodeRankInfo, parseDynamicNodeId } from "@/lib/dynamic-taxon";
 import type { RedListSpecies } from "@/hooks/useRedListSpeciesQuery";
 import { prettifyQs } from "@/lib/query-string";
+import type { LayoutMode } from "@/hooks/useFilterParams";
 import { sisRowKey } from "@/lib/species-row-key";
 // Reason labels are shared with the main dashboard's taxonomic-revision flag —
 // see lib/col-revision.ts (both surfaces must explain a reason the same way).
@@ -139,8 +140,8 @@ interface Props {
   /** Table 1a mode / SSC groups mode / country-view landing page — URL-synced
    * (see useFilterParams) so it survives reload/share and the browser back
    * button can return to it. */
-  layoutMode: "table1a" | "ssc" | "country" | null;
-  onLayoutModeChange: (mode: "table1a" | "ssc" | "country" | null) => void;
+  layoutMode: LayoutMode;
+  onLayoutModeChange: (mode: LayoutMode) => void;
   /** Rendered full width, always visible, when layoutMode === "country" — a
    * promoted WorldMap/CountryStatsList panel built by RedListView (which already
    * owns the country-stats data and click-through wiring), kept out of this
@@ -155,6 +156,14 @@ interface Props {
    * scopes this table's own fetches too. One country, a whole region, or an
    * arbitrary multi-select are all just "the current set of codes" here. */
   countryScope?: string[] | null;
+  /** Realm View's landing chooser — the three realm cards, built by RedListView
+   * (which owns the realm-stats fetch and click-through wiring), for the same
+   * reason countryModeContent is built there. */
+  realmModeContent?: React.ReactNode;
+  /** Set whenever at least one realm is selected — the realm counterpart of
+   * countryScope, and like it only actually narrows this table inside its own
+   * view (see the scoped/scopeKey derivation below). */
+  realmScope?: string[] | null;
 }
 
 // Any static tree node with children is expandable — plus any node under a live
@@ -262,11 +271,11 @@ type ColumnId = "described" | "colDescribed" | "assessed" | "outdated" | "breakd
 // Columns with no valid per-country value — neither GBIF nor Catalogue of Life
 // data has a country dimension, and estimatedDescribed/percentAssessed ("described"
 // column) is a global figure (see scoped-taxa-summary-duckdb.ts's doc comment).
-// Force-hidden whenever countryStyleColumns is set (a country is scoped, or
+// Force-hidden whenever scopeStyleColumns is set (a country is scoped, or
 // we're in Country View at all — see its definition below), on top of whatever
 // hiddenColumns already has — total_assessed/outdated/by_category ("assessed"/
 // "outdated"/"breakdown") ARE real per-country numbers and stay visible.
-const COUNTRY_SCOPED_HIDDEN_COLUMNS: ColumnId[] = [
+const SCOPE_HIDDEN_COLUMNS: ColumnId[] = [
   "described", "colDescribed", "colNe", "gbifUnassessed", "totalGbifObs", "meanGbifObs", "medianGbifObs", "gbifDistribution",
 ];
 
@@ -1419,7 +1428,7 @@ function DescribedInfoIcon({ nodeId, source, breakdown }: { nodeId: string; sour
   );
 }
 
-export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgroups, onToggleSubgroup, onNavigateToSubgroup, disableAllSpecies, viewMode = "reassessments", layoutMode, onLayoutModeChange, countryModeContent, countryPillsContent, countryScope }: Props) {
+export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgroups, onToggleSubgroup, onNavigateToSubgroup, disableAllSpecies, viewMode = "reassessments", layoutMode, onLayoutModeChange, countryModeContent, countryPillsContent, countryScope, realmModeContent, realmScope }: Props) {
   const isNewAssessments = viewMode === "new-assessments";
   const router = useRouter();
   const [taxa, setTaxa] = useState<TaxonSummary[]>([]);
@@ -1455,45 +1464,61 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  // Only actually scope this table's own data to a country while in Country
-  // View (layoutMode === "country") — countryScope itself is set from ANY
-  // country click/hover anywhere on the page (e.g. the small map widget in
-  // an ordinary taxon view's own charts row), but this table's numbers
+  // Only actually scope this table's own data while in the matching scope view —
+  // countryScope/realmScope are each set from ANY selection of that kind anywhere
+  // on the page (e.g. the small map widget in an ordinary taxon view's own charts
+  // row, or the Realm buttons under More Filters), but this table's numbers
   // (fetchTaxa, ensureSubgroupData, Table 1a/SSC fetches, and the cache-
-  // buster reset below) should stay global outside Country View — clicking
+  // buster reset below) should stay global outside those views — clicking
   // DRC while browsing Mammals shouldn't silently re-scope the breadcrumb
-  // tree to DRC's numbers. countryKey derives from this, so gating here
-  // covers every one of those effects at once.
-  const countryScoped = layoutMode === "country" && !!countryScope?.length;
-  // Stable, order-independent key for the current country selection — used in
-  // place of the countryScope array itself in effect dependency arrays and
-  // fetch query strings. countryScope is a fresh array every render (built via
-  // `[...selectedCountries]` in RedListView), so depending on the array
-  // reference directly would refetch on every unrelated parent re-render, not
-  // just when the actual selection changes; sorting also means toggling two
-  // countries on in either order produces the same key (and cache-friendly
-  // URL), not one per click order.
-  const countryKey = countryScoped ? [...countryScope!].sort().join(",") : "";
+  // tree to DRC's numbers, and nor should ticking Marine under More Filters.
+  // scopeKey derives from these, so gating here covers every one of those
+  // effects at once.
+  //
+  // Each part is a stable, order-independent key for its dimension's selection —
+  // used in place of the arrays themselves in effect dependency arrays and fetch
+  // query strings. Both props are a fresh array every render (built via
+  // `[...selectedCountries]` / `[...selectedSystems]` in RedListView), so
+  // depending on an array reference directly would refetch on every unrelated
+  // parent re-render, not just when the actual selection changes; sorting also
+  // means toggling two countries on in either order produces the same key (and
+  // cache-friendly URL), not one per click order.
+  const countryPart = layoutMode === "country" && countryScope?.length ? [...countryScope].sort().join(",") : "";
+  const realmPart = layoutMode === "realm" && realmScope?.length ? [...realmScope].sort().join(",") : "";
+  const scoped = !!countryPart || !!realmPart;
+  // Prefixed rather than plain-concatenated so the two dimensions can't collide
+  // into the same key (a country coded "Marine" doesn't exist, but a key whose
+  // meaning depends on no value ever overlapping is a trap worth not setting).
+  const scopeKey = scoped ? `c:${countryPart}|r:${realmPart}` : "";
+  // The query string both scoped dimensions contribute to, built once here so
+  // every fetch below stays in lockstep with scopeKey (the staleness guard) —
+  // no leading ? or &, callers add whichever they need.
+  const scopeQs = [
+    countryPart && `country=${encodeURIComponent(countryPart)}`,
+    realmPart && `realm=${encodeURIComponent(realmPart)}`,
+  ].filter(Boolean).join("&");
   // Kept in sync every render (plain assignment, not an effect — refs don't
   // need one) so the promise-chained fetches below (toggleExpand, Table 1a,
   // SSC groups — unlike the main fetchTaxa effect above, these aren't
   // effect-cleanup-cancellable) can tell, once their response finally
-  // resolves, whether countryKey has already moved on to a different
-  // country and skip applying a now-stale result.
-  const countryKeyRef = useRef(countryKey);
-  countryKeyRef.current = countryKey;
-  // Same layoutMode === "country" gate as countryScoped above — Country
-  // View's own landing page always uses the plain 3-column style (even
-  // before a country is picked, showing global data) since Described/GBIF/
-  // CoL columns have no country dimension there either.
-  const countryStyleColumns = layoutMode === "country";
+  // resolves, whether scopeKey has already moved on to a different
+  // scope and skip applying a now-stale result.
+  const scopeKeyRef = useRef(scopeKey);
+  scopeKeyRef.current = scopeKey;
+  // Gated on the VIEW, not on whether anything's selected in it — both scope
+  // views' landing pages always use the plain 3-column style (even before a
+  // country/realm is picked, showing global data), since Described/GBIF/CoL
+  // columns have no country dimension there either, and no realm dimension at
+  // all (they describe species that have never been assessed, and realm is
+  // recorded on the assessment — see scoped-taxa-summary-duckdb.ts).
+  const scopeStyleColumns = layoutMode === "country" || layoutMode === "realm";
   // Tighter, non-responsive padding for the sticky Taxonomic Group column in
-  // Country View — cellPad's px-4 growth at the md breakpoint is more than the
+  // the scope views — cellPad's px-4 growth at the md breakpoint is more than the
   // taxon name + icon need just to avoid wrapping, and that column is the
   // biggest lever for giving the Outdated/% Outdated bars more room in the
   // narrower 3/5-width table.
-  const taxonCellPad = countryStyleColumns ? "px-2 py-2 md:py-2.5" : cellPad;
-  const isVisible = (col: ColumnId) => !hiddenColumns.has(col) && !(countryStyleColumns && COUNTRY_SCOPED_HIDDEN_COLUMNS.includes(col));
+  const taxonCellPad = scopeStyleColumns ? "px-2 py-2 md:py-2.5" : cellPad;
+  const isVisible = (col: ColumnId) => !hiddenColumns.has(col) && !(scopeStyleColumns && SCOPE_HIDDEN_COLUMNS.includes(col));
   const toggleColumn = (col: ColumnId) => {
     setHiddenColumns((prev) => {
       const next = new Set(prev);
@@ -1508,7 +1533,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     setHiddenColumns(new Set(FOCUS_HIDDEN[mode]));
   };
 
-  const visibleColCount = 1 + (Object.keys(COLUMN_LABELS) as ColumnId[]).filter(isVisible).length + (countryStyleColumns ? 1 : 0);
+  const visibleColCount = 1 + (Object.keys(COLUMN_LABELS) as ColumnId[]).filter(isVisible).length + (scopeStyleColumns ? 1 : 0);
 
   // Close column menu on outside click
   useEffect(() => {
@@ -1565,15 +1590,14 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
   const ensureSubgroupData = useCallback(async (taxonId: string) => {
     if (subgroupDataRef.current[taxonId] || loadingSubgroupsRef.current.has(taxonId)) return;
     setLoadingSubgroups((prev) => new Set(prev).add(taxonId));
-    const requestCountryKey = countryKey;
+    const requestScopeKey = scopeKey;
     try {
-      const countryQs = countryKey ? `&country=${encodeURIComponent(countryKey)}` : "";
-      const res = await fetch(`/api/redlist/taxa-subgroups?nodeId=${taxonId}${countryQs}`);
-      // Bail if the country changed while this was in flight — countryKey
+      const res = await fetch(`/api/redlist/taxa-subgroups?nodeId=${taxonId}${scopeQs ? `&${scopeQs}` : ""}`);
+      // Bail if the country changed while this was in flight — scopeKey
       // changing already clears subgroupData wholesale (see the effect
       // above), and applying this now-stale response would silently
       // re-add wrongly-scoped numbers for taxonId right after that clear.
-      if (res.ok && countryKeyRef.current === requestCountryKey) {
+      if (res.ok && scopeKeyRef.current === requestScopeKey) {
         const data = await res.json();
         setSubgroupData((prev) => ({ ...prev, [taxonId]: data.subgroups }));
       }
@@ -1584,7 +1608,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         return next;
       });
     }
-  }, [countryKey]);
+  }, [scopeKey, scopeQs]);
 
   // A node's own summary comes from its PARENT's subgroupData bucket (that's what
   // ensureSubgroupData(parentId) fetches — the parent's children, one of which is
@@ -1620,6 +1644,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
   const table1aMode = layoutMode === "table1a";
   const sscMode = layoutMode === "ssc";
   const countryMode = layoutMode === "country";
+  const realmMode = layoutMode === "realm";
 
   // Single view selector — replaces the old Table 1a/SSC Groups button pair
   // (+ their "Exit ... View" states). "Country view" needs real per-country
@@ -1651,13 +1676,18 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             router.push("/near-me");
             return;
           }
-          onLayoutModeChange(v === "taxonomic" ? null : (v as "table1a" | "ssc" | "country"));
+          onLayoutModeChange(v === "taxonomic" ? null : (v as LayoutMode));
         }}
         className="text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
         <option value="taxonomic">By Taxonomic Group</option>
         <option value="country" disabled={isNewAssessments} title={isNewAssessments ? "Not available for New Assessments — Not Evaluated species have no location data" : undefined}>
           By Country
+        </option>
+        {/* Same reason Country View is disabled here: realm is recorded on the
+            assessment, so Not Evaluated species have none. */}
+        <option value="realm" disabled={isNewAssessments} title={isNewAssessments ? "Not available for New Assessments — Not Evaluated species have no realm recorded" : undefined}>
+          By Realm
         </option>
         <option value="ssc">By SSC Specialist Group (WIP)</option>
         <option value="compare">Comparison Mode</option>
@@ -1728,16 +1758,15 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     if (!table1aMode || table1aData || table1aFetchStartedRef.current) return;
     table1aFetchStartedRef.current = true;
     setTable1aLoading(true);
-    const requestCountryKey = countryKey;
-    const countryQs = countryKey ? `&country=${encodeURIComponent(countryKey)}` : "";
-    fetch(`/api/redlist/taxa-summary?table1a=true${countryQs}`)
+    const requestScopeKey = scopeKey;
+    fetch(`/api/redlist/taxa-summary?table1a=true${scopeQs ? `&${scopeQs}` : ""}`)
       .then(res => res.ok ? res.json() : null)
-      // countryKey changing already resets table1aData/table1aFetchStartedRef
+      // scopeKey changing already resets table1aData/table1aFetchStartedRef
       // (see the effect above) so a fresh fetch can start — but doesn't cancel
       // THIS one, so skip applying it if it resolves after that happened.
-      .then(data => { if (data && countryKeyRef.current === requestCountryKey) setTable1aData(data.sections); })
+      .then(data => { if (data && scopeKeyRef.current === requestScopeKey) setTable1aData(data.sections); })
       .finally(() => setTable1aLoading(false));
-  }, [table1aMode, table1aData, countryKey]);
+  }, [table1aMode, table1aData, scopeKey, scopeQs]);
 
   // SSC groups mode — same flat-table layout as Table 1a mode, sourced from
   // the precomputed SSC wrapper nodes' children instead of the top-level
@@ -1750,11 +1779,11 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     if (!sscMode || sscData || sscFetchStartedRef.current) return;
     sscFetchStartedRef.current = true;
     setSscLoading(true);
-    const requestCountryKey = countryKey;
-    const countryQs = countryKey ? `&country=${encodeURIComponent(countryKey)}` : "";
+    const requestScopeKey = scopeKey;
+
     Promise.all(
       SSC_SECTIONS.map((section) =>
-        fetch(`/api/redlist/taxa-subgroups?nodeId=${section.nodeId}${countryQs}`)
+        fetch(`/api/redlist/taxa-subgroups?nodeId=${section.nodeId}${scopeQs ? `&${scopeQs}` : ""}`)
           .then(res => (res.ok ? res.json() : null))
           .then((data): Table1aSectionData | null => {
             if (!data) return null;
@@ -1785,12 +1814,12 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
           })
       )
     )
-      // Same staleness guard as the Table 1a fetch above — countryKey
+      // Same staleness guard as the Table 1a fetch above — scopeKey
       // changing already reset sscData/sscFetchStartedRef, but didn't cancel
       // this in-flight request.
-      .then((sections) => { if (countryKeyRef.current === requestCountryKey) setSscData(sections.filter((s): s is Table1aSectionData => s != null)); })
+      .then((sections) => { if (scopeKeyRef.current === requestScopeKey) setSscData(sections.filter((s): s is Table1aSectionData => s != null)); })
       .finally(() => setSscLoading(false));
-  }, [sscMode, sscData, countryKey]);
+  }, [sscMode, sscData, scopeKey, scopeQs]);
 
   // Shared flat-table data source for whichever mode (Table 1a / SSC groups) is active
   const flatMode = table1aMode || sscMode;
@@ -1801,16 +1830,16 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
   // not by country — without this, switching countries while table1a/ssc data (or an
   // expanded node's subgroups) is already cached would keep showing the stale,
   // un-scoped numbers instead of re-fetching for the new country.
-  const prevCountryKeyRef = useRef(countryKey);
+  const prevScopeKeyRef = useRef(scopeKey);
   useEffect(() => {
-    if (prevCountryKeyRef.current === countryKey) return;
-    prevCountryKeyRef.current = countryKey;
+    if (prevScopeKeyRef.current === scopeKey) return;
+    prevScopeKeyRef.current = scopeKey;
     setTable1aData(null);
     table1aFetchStartedRef.current = false;
     setSscData(null);
     sscFetchStartedRef.current = false;
     setSubgroupData({});
-  }, [countryKey]);
+  }, [scopeKey, scopeQs]);
 
   // Collapse all when returning to landing page (no taxa selected)
   useEffect(() => {
@@ -1849,7 +1878,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     for (const id of toExpand) toggleExpand(id);
     // Deps intentionally limited to selectedSubgroups only:
     // - toggleExpand/ensureSubgroupData: stable identity (useCallback, only
-    //   countryKey as a real dep — a country change already resets subgroupData
+    //   scopeKey as a real dep — a country change already resets subgroupData
     //   entirely elsewhere, so refetching here isn't needed on that change)
     // - selectedTaxa: would cause re-runs when taxa selection changes, but this
     //   effect only needs to react to subgroup URL changes
@@ -1857,7 +1886,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     //   expands taxa (mutates expandedTaxa), which would re-trigger the effect
   }, [selectedSubgroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Aborts the in-flight request whenever countryKey changes again before it
+  // Aborts the in-flight request whenever scopeKey changes again before it
   // resolves — without this, rapid country hovering could fire many quick
   // requests whose responses race each other, and whichever happened to
   // resolve LAST (not necessarily the one for the currently-hovered/
@@ -1869,8 +1898,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     async function fetchTaxa() {
       setLoading(true);
       try {
-        const countryQs = countryKey ? `?country=${encodeURIComponent(countryKey)}` : "";
-        const res = await fetch(`/api/redlist/taxa-summary${countryQs}`, { signal: controller.signal });
+        const res = await fetch(`/api/redlist/taxa-summary${scopeQs ? `?${scopeQs}` : ""}`, { signal: controller.signal });
         if (!res.ok) throw new Error("Failed to load taxa");
         const data = await res.json();
         setTaxa(data.taxa);
@@ -1883,7 +1911,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     }
     fetchTaxa();
     return () => controller.abort();
-  }, [countryKey]);
+  }, [scopeKey, scopeQs]);
 
   // Only the very first load (no data at all yet, in any mode) blanks the
   // WHOLE component out to this — in country mode the table itself is still
@@ -2229,12 +2257,12 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         )}
         {colDescribedCell(gbifObs?.colDescribed)}
         {isVisible("assessed") && (
-          <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+          <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
             {!available ? (
               <span className="text-sm md:text-base text-zinc-400">—</span>
-            ) : countryStyleColumns ? (
+            ) : scopeStyleColumns ? (
               // % assessed (vs. the *global* described-species estimate) has no
-              // per-country meaning — see COUNTRY_SCOPED_HIDDEN_COLUMNS's doc
+              // per-country meaning — see SCOPE_HIDDEN_COLUMNS's doc
               // comment — so this is a plain count, not renderBar's bar+percent.
               <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{assessed.toLocaleString()}</span>
             ) : (
@@ -2243,17 +2271,17 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
           </td>
         )}
         {isVisible("outdated") && (
-          <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+          <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
             {!available ? (
               <span className="text-sm md:text-base text-zinc-400">—</span>
-            ) : countryStyleColumns ? (
+            ) : scopeStyleColumns ? (
               <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{outdated.toLocaleString()}</span>
             ) : (
               renderBar(percentOutdated, getOutdatedBarColor(percentOutdated), isAllRow, outdated)
             )}
           </td>
         )}
-        {countryStyleColumns && (
+        {scopeStyleColumns && (
           <td className={numericTdNoDividerClasses}>
             {available ? (
               renderCompactPercentBar(percentOutdated)
@@ -2568,8 +2596,8 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
           )}
           {colDescribedCell(sg.colDescribed)}
           {isVisible("assessed") && (
-            <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
-              {countryStyleColumns ? (
+            <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+              {scopeStyleColumns ? (
                 <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{sg.totalAssessed.toLocaleString()}</span>
               ) : (
                 renderAssessedBar(sgPctAssessed, sg.totalAssessed)
@@ -2577,17 +2605,17 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             </td>
           )}
           {isVisible("outdated") && (
-            <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+            <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
               {sg.totalAssessed === 0 ? (
                 <span className="text-sm text-zinc-400">—</span>
-              ) : countryStyleColumns ? (
+              ) : scopeStyleColumns ? (
                 <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{sg.outdated.toLocaleString()}</span>
               ) : (
                 renderBar(sgPctOutdated, getOutdatedBarColor(sgPctOutdated), false, sg.outdated)
               )}
             </td>
           )}
-          {countryStyleColumns && (
+          {scopeStyleColumns && (
             <td className={numericTdNoDividerClasses}>
               {sg.totalAssessed > 0 ? (
                 renderCompactPercentBar(sgPctOutdated)
@@ -2683,10 +2711,10 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
           )}
           {colDescribedCell(taxon.available ? taxon.colDescribed : undefined)}
           {isVisible("assessed") && (
-            <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+            <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
               {!taxon.available ? (
                 <span className="text-sm text-zinc-400">—</span>
-              ) : countryStyleColumns ? (
+              ) : scopeStyleColumns ? (
                 <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{taxon.totalAssessed.toLocaleString()}</span>
               ) : (
                 renderAssessedBar(taxon.percentAssessed, taxon.totalAssessed)
@@ -2694,17 +2722,17 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
             </td>
           )}
           {isVisible("outdated") && (
-            <td className={countryStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
+            <td className={scopeStyleColumns ? numericTdNoDividerClasses : flexTdClasses}>
               {!taxon.available ? (
                 <span className="text-sm text-zinc-400">—</span>
-              ) : countryStyleColumns ? (
+              ) : scopeStyleColumns ? (
                 <span className="text-sm md:text-base text-zinc-700 dark:text-zinc-300 tabular-nums">{taxon.outdated.toLocaleString()}</span>
               ) : (
                 renderBar(taxon.percentOutdated, getOutdatedBarColor(taxon.percentOutdated), false, taxon.outdated)
               )}
             </td>
           )}
-          {countryStyleColumns && (
+          {scopeStyleColumns && (
             <td className={numericTdNoDividerClasses}>
               {taxon.available ? (
                 renderCompactPercentBar(taxon.percentOutdated)
@@ -2804,24 +2832,24 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
           <th className={numericThClasses}># Described Species (CoL)</th>
         )}
         {isVisible("assessed") && (
-          <th className={countryStyleColumns ? `${centeredThClasses} whitespace-nowrap min-w-[80px]` : centeredThClasses}>
-            {countryStyleColumns ? "# Assessed" : "# Red List Assessed"}
+          <th className={scopeStyleColumns ? `${centeredThClasses} whitespace-nowrap min-w-[80px]` : centeredThClasses}>
+            {scopeStyleColumns ? "# Assessed" : "# Red List Assessed"}
           </th>
         )}
         {isVisible("outdated") && (
-          <th className={countryStyleColumns ? numericThNoDividerClasses : centeredThClasses}>
+          <th className={scopeStyleColumns ? numericThNoDividerClasses : centeredThClasses}>
             {/* Country View's half-width column has no room for the full
                 "(10+ yrs old)" qualifier + info icon on one non-wrapping line
                 (inline-flex forces it to stay unwrapped) — shortened here,
                 same info still available via the plain-mode header. */}
-            {countryStyleColumns ? (
+            {scopeStyleColumns ? (
               "# Needs Updating"
             ) : (
               <span className="inline-flex items-center gap-1"># Needs Updating (10+ yrs old) <OutdatedInfoIcon /></span>
             )}
           </th>
         )}
-        {countryStyleColumns && (
+        {scopeStyleColumns && (
           <th className={numericThNoDividerClasses}>% Needs Updating</th>
         )}
         {isVisible("gbifUnassessed") && (
@@ -2922,7 +2950,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         the map-first rework. Uses `contents` to no-op the table wrapper
         entirely outside country mode, rather than branching (and
         duplicating) the huge table JSX below per mode.
-        Landing (not countryScoped): the map is full width AND grows to fill
+        Landing (not scoped): the map is full width AND grows to fill
         the rest of the viewport (flex-1 min-h-0, via the flex chain from
         page.tsx's <main> through RedListView's root down to here) so it
         reads as a full-height landing map rather than a small box sitting
@@ -2935,17 +2963,23 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         here), same as before this rework. The table's own scrollRef box
         below is zoomed down (zoom-[.75]) to compensate for the narrower
         (1/2, was 2/3) column. */}
-    {countryMode && !countryScoped && (
+    {/* Realm View: the three cards sit full width above the taxa table, which
+        stays visible throughout — unlike Country View, which hides its table
+        until a country is picked because its landing map fills the viewport.
+        Three cards leave plenty of room, and keeping the global table on screen
+        is the point of the view: you watch it narrow when you pick a realm. */}
+    {realmMode && <div className="mb-4">{realmModeContent}</div>}
+    {countryMode && !scoped && (
       <div className="flex flex-col flex-1 min-h-0 mb-4">{countryModeContent}</div>
     )}
-    {countryMode && countryScoped && (
+    {countryMode && scoped && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-1.5">
         <div aria-hidden="true" />
         <div>{countryPillsContent}</div>
       </div>
     )}
-    <div className={countryMode ? (countryScoped ? "grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4" : "hidden") : "contents"}>
-      {countryMode && countryScoped && <div>{countryModeContent}</div>}
+    <div className={countryMode ? (scoped ? "grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4" : "hidden") : "contents"}>
+      {countryMode && scoped && <div>{countryModeContent}</div>}
       <div className={countryMode ? "min-w-0 flex flex-col h-full" : "contents"}>
         {/* No "country name atop the table" heading here anymore — a country
             scoped outside Country View now shows only as the normal removable
@@ -3423,7 +3457,9 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
     {perTaxa.length > 0 && selectedTaxa.size === 0 && (
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 mt-1.5">
         <span className="hidden sm:inline pl-3 md:pl-4 text-sm text-zinc-400 dark:text-zinc-500">
-          {countryMode ? "Click a country to view its species, Cmd/Ctrl+click to multi-select." : "Click to filter, use charts and search to explore species. Cmd/Ctrl+click to multi-select, Shift+drag across a chart to select a range."}
+          {countryMode ? "Click a country to view its species, Cmd/Ctrl+click to multi-select."
+            : realmMode ? "Click a realm to narrow the table to it, Cmd/Ctrl+click to multi-select."
+            : "Click to filter, use charts and search to explore species. Cmd/Ctrl+click to multi-select, Shift+drag across a chart to select a range."}
         </span>
         <span className="inline-flex items-center gap-1.5 ml-auto pr-3 sm:pr-0">
           {/* Assessed/Not Evaluated toggle used to be paired here too, but it's

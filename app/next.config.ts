@@ -106,6 +106,11 @@ const nextConfig: NextConfig = {
     // ?country=, since the throw happens before GET() ever runs).
     "/api/redlist/taxa-summary": DUCKDB_TRACE,
     "/api/redlist/taxa-subgroups": DUCKDB_TRACE,
+    // Realm view's landing cards — one live GROUP BY over assessed.parquet
+    // (getRealmStats), so the same native addon and the same two entries as the
+    // pair above. Unlike /api/redlist/country-stats next to it, this is NOT a
+    // precomputed JSON read, so it does need the DuckDB trace.
+    "/api/redlist/realm-stats": DUCKDB_TRACE,
     // "What else is assessed near here" joins a GBIF radius facet against
     // assessed.parquet in R2 (getAssessedByGbifKeys) — the same DuckDB-over-R2
     // query as every route above, so it needs the dlopen'd .so and the sync
@@ -187,6 +192,7 @@ const nextConfig: NextConfig = {
     // gated on assessed.parquet NOT existing locally.
     "/api/redlist/taxa-summary": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
     "/api/redlist/taxa-subgroups": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
+    "/api/redlist/realm-stats": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
     // Reads only the small precomputed country-stats.json (no DuckDB — this is
     // a static aggregate, not a live query, see species-store.ts's getCountryStats).
     "/api/redlist/country-stats": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/table1a-children-summaries.json", "**/data/ssc-group-children-summaries.json", "**/data/*.parquet", ...COL_ARTIFACTS],
