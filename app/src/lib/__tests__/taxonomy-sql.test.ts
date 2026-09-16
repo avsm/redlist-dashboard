@@ -4,9 +4,9 @@ import { matchesFilter } from "@/lib/taxonomy-utils";
 
 // filterToSql is the SQL mirror of matchesFilter (taxonomy-utils.ts) — previously
 // inline in scripts/build-taxa-summary.ts (untested there), now shared with the live
-// per-country query path (country-taxa-summary-duckdb.ts). These tests check the
+// per-country query path (scoped-taxa-summary-duckdb.ts). These tests check the
 // generated predicate's shape; full row-matching parity against real parquet data is
-// verified manually (see country-taxa-summary-duckdb.test.ts's file comment).
+// verified manually (see scoped-taxa-summary-duckdb.test.ts's file comment).
 
 describe("sqlStrList", () => {
   it("lowercases and quotes each value", () => {

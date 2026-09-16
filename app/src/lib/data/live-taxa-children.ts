@@ -7,7 +7,7 @@
  *
  * Enumerates real taxonomic children (order -> family -> genus) via ONE grouped
  * DuckDB scan per level, not one query per candidate child — unlike
- * country-taxa-summary-duckdb.ts's getCountryChildrenSummaries, which can afford
+ * scoped-taxa-summary-duckdb.ts's getCountryChildrenSummaries, which can afford
  * a per-child loop only because it iterates a KNOWN list of <=12 static
  * children; a live "family under order" or "genus under family" enumeration can
  * have 50-300+ distinct values, so looping per-value would be 50-300 round trips.
@@ -23,7 +23,7 @@
  * numbers).
  */
 import { getConn, parquetUri, ensureNeHelpers } from "./species-duckdb";
-import { outdatedSql } from "./country-taxa-summary-duckdb";
+import { outdatedSql } from "./scoped-taxa-summary-duckdb";
 import { ensureVernacularNamesLoaded } from "./vernacular-names";
 import { NODE_INDEX } from "@/lib/taxonomy-utils";
 import { filterToSql, canonicalOrderColumnSql, canonicalClassColumnSql } from "@/lib/taxonomy-sql";

@@ -202,7 +202,7 @@ export function getPrecomputedChildrenSummaries(parentNodeId: string): NodeSumma
  * country-view landing page's world map. A single precomputed aggregate
  * (~200 countries, one static file), not a live query: this data never varies
  * by taxon/subgroup selection, unlike the per-country taxa-summary/node-summary
- * endpoints (see country-taxa-summary-duckdb.ts), so there's nothing for a
+ * endpoints (see scoped-taxa-summary-duckdb.ts), so there's nothing for a
  * live query to compose with here.
  */
 export function getCountryStats(): Record<string, { species: number; outdated: number }> {

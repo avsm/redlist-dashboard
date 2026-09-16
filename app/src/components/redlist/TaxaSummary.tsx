@@ -261,7 +261,7 @@ type ColumnId = "described" | "colDescribed" | "assessed" | "outdated" | "breakd
 
 // Columns with no valid per-country value — neither GBIF nor Catalogue of Life
 // data has a country dimension, and estimatedDescribed/percentAssessed ("described"
-// column) is a global figure (see country-taxa-summary-duckdb.ts's doc comment).
+// column) is a global figure (see scoped-taxa-summary-duckdb.ts's doc comment).
 // Force-hidden whenever countryStyleColumns is set (a country is scoped, or
 // we're in Country View at all — see its definition below), on top of whatever
 // hiddenColumns already has — total_assessed/outdated/by_category ("assessed"/

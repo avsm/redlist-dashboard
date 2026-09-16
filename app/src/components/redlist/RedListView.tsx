@@ -3632,7 +3632,7 @@ export default function RedListView({ viewMode = "reassessments", onViewModeChan
   // country, a whole region, or an arbitrary multi-select are all just "the
   // set of currently selected countries" — the live per-country query counts
   // each species once regardless of how many of these codes it matches (see
-  // country-taxa-summary-duckdb.ts's countriesWhere), so there's no reason to
+  // scoped-taxa-summary-duckdb.ts's countriesWhere), so there's no reason to
   // special-case region vs. multi-select here.
   const countryScope = selectedCountries.size > 0 ? [...selectedCountries] : null;
 

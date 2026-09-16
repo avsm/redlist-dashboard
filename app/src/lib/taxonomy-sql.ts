@@ -8,7 +8,7 @@
  * Originally lived inline in scripts/build-taxa-summary.ts (used only against
  * the CoL species/ parquet, for colDescribed/colNe counts). Extracted so it can
  * also run against assessed.parquet at request time (src/lib/data/
- * country-taxa-summary-duckdb.ts) — the column names it references
+ * scoped-taxa-summary-duckdb.ts) — the column names it references
  * (scientific_name/class_name/order_name/family/taxon_group) are shared by both
  * parquets, and expandClasses' CoL-specific class aliasing is a harmless no-op
  * superset when matched against IUCN's own (coarser) class names.
