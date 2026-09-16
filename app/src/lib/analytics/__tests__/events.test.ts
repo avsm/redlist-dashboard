@@ -5,6 +5,8 @@ import {
   primeFilterBaseline,
   reportFilterUsage,
   resetFilterBaselines,
+  captureSearchResultSelected,
+  captureSearchNoResults,
   FILTER_PARAMS,
 } from "../events";
 import { OWN_PARAM_NAMES } from "@/hooks/useFilterParams";
@@ -169,5 +171,74 @@ describe("reportFilterUsage", () => {
     process.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_test";
     reportFilterUsage("?categories=CR");
     expect(posthog.capture).not.toHaveBeenCalled();
+  });
+});
+
+describe("search events", () => {
+  // These fire before the SPA writes the new URL, so stand up a location that
+  // has NOT been navigated yet — the state PostHog would auto-capture from.
+  beforeEach(() => {
+    vi.stubGlobal("window", { location: { href: "https://dashforlife.org/?taxa=mammals" } });
+  });
+
+  describe("captureSearchResultSelected", () => {
+    const args = {
+      query: "acrocephalus",
+      resultName: "Acrocephalus sechellensis",
+      resultType: "species" as const,
+      resultCategory: "NT",
+      rank: 0,
+    };
+
+    it("captures the entered query as a property", () => {
+      captureSearchResultSelected(args);
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "search_result_selected",
+        expect.objectContaining({ query: "acrocephalus", result_name: "Acrocephalus sechellensis" })
+      );
+    });
+
+    it("overrides $current_url with the search term added to the current URL", () => {
+      captureSearchResultSelected(args);
+      const props = posthog.capture.mock.calls[0][1];
+      expect(new URL(props.$current_url).searchParams.get("search")).toBe("acrocephalus");
+      // Existing params on the page are preserved.
+      expect(new URL(props.$current_url).searchParams.get("taxa")).toBe("mammals");
+    });
+
+    it("truncates an over-long query in the property", () => {
+      captureSearchResultSelected({ ...args, query: "x".repeat(500) });
+      expect(posthog.capture.mock.calls[0][1].query).toHaveLength(100);
+    });
+
+    it("omits $current_url and captures nothing extra when there is no location", () => {
+      vi.stubGlobal("window", {});
+      captureSearchResultSelected(args);
+      expect(posthog.capture.mock.calls[0][1]).not.toHaveProperty("$current_url");
+    });
+
+    it("captures nothing when PostHog is not configured", () => {
+      delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
+      captureSearchResultSelected(args);
+      expect(posthog.capture).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("captureSearchNoResults", () => {
+    it("captures the query and a search-aware $current_url", () => {
+      captureSearchNoResults("notaspecies");
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "search_no_results",
+        expect.objectContaining({ query: "notaspecies" })
+      );
+      const props = posthog.capture.mock.calls[0][1];
+      expect(new URL(props.$current_url).searchParams.get("search")).toBe("notaspecies");
+    });
+
+    it("captures nothing when PostHog is not configured", () => {
+      delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
+      captureSearchNoResults("notaspecies");
+      expect(posthog.capture).not.toHaveBeenCalled();
+    });
   });
 });

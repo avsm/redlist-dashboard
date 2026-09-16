@@ -163,6 +163,30 @@ export function resetFilterBaselines(): void {
 // --- Search --------------------------------------------------------------
 
 /**
+ * The URL PostHog SHOULD record for a search event, with the query in it.
+ *
+ * PostHog auto-captures `$current_url` by reading the DOM at capture time, but
+ * these events fire before the SPA has written the new URL — so the value it
+ * grabs is the URL from *before* the search, with no search term in it (#546).
+ * Passing `$current_url` explicitly overrides the SDK's guess, so we rebuild it
+ * from the current location with the `search` param set to the settled query,
+ * matching what the address bar reads once navigation lands.
+ *
+ * Returns undefined when there is no usable location (SSR, or a malformed href),
+ * so the caller can omit the key and let the SDK fall back to its own detection.
+ */
+function searchCurrentUrl(query: string): string | undefined {
+  if (typeof window === "undefined" || !window.location) return undefined;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("search", query);
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * A search the user actually acted on — the highest-signal thing the search box
  * produces, because the chosen result says what the query MEANT.
  *
@@ -180,7 +204,9 @@ export function captureSearchResultSelected(params: {
   rank: number;
 }): void {
   if (!enabled()) return;
+  const currentUrl = searchCurrentUrl(params.query);
   posthog.capture("search_result_selected", {
+    ...(currentUrl ? { $current_url: currentUrl } : {}),
     query: params.query.slice(0, MAX_VALUE_LENGTH),
     result_name: params.resultName,
     result_type: params.resultType,
@@ -197,5 +223,9 @@ export function captureSearchResultSelected(params: {
  */
 export function captureSearchNoResults(query: string): void {
   if (!enabled()) return;
-  posthog.capture("search_no_results", { query: query.slice(0, MAX_VALUE_LENGTH) });
+  const currentUrl = searchCurrentUrl(query);
+  posthog.capture("search_no_results", {
+    ...(currentUrl ? { $current_url: currentUrl } : {}),
+    query: query.slice(0, MAX_VALUE_LENGTH),
+  });
 }
