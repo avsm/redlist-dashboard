@@ -42,8 +42,17 @@ export default function RealmBars({ realms, totalAssessed, selected, onSelect }:
   const max = Math.max(...realms.map((r) => r.species), 1);
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-      <div className="flex flex-col gap-2.5">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+      {/* Styled as the taxa table's own header row directly below it, rather
+          than as a floating chart title — the two read as one stacked pair, and
+          it saves the bars needing a legend (one series, so the header names
+          what the bars measure). */}
+      <div className="px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 rounded-t-xl">
+        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          IUCN Red List Assessments by Realm
+        </h2>
+      </div>
+      <div className="flex flex-col gap-2.5 p-4 pb-3">
         {realms.map(({ realm, species, outdated }) => {
           const share = totalAssessed > 0 ? (species / totalAssessed) * 100 : 0;
           const pctOutdated = species > 0 ? (outdated / species) * 100 : 0;
@@ -78,7 +87,7 @@ export default function RealmBars({ realms, totalAssessed, selected, onSelect }:
       </div>
       {/* The one thing the numbers can't say for themselves: the shares sum to
           more than 100%, and a reader who notices deserves the reason. */}
-      <p className="mt-2.5 pl-1 text-xs text-zinc-400 dark:text-zinc-500">
+      <p className="px-4 pb-3 pl-5 text-xs text-zinc-400 dark:text-zinc-500">
         Share of {totalAssessed.toLocaleString()} assessed species; a species assessed in two realms counts in both.
       </p>
     </div>

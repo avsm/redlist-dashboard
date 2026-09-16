@@ -2878,20 +2878,19 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         )}
         {isVisible("assessed") && (
           <th className={scopeStyleColumns ? `${centeredThClasses} whitespace-nowrap min-w-[80px]` : centeredThClasses}>
-            {scopeStyleColumns ? "# Assessed" : "# Red List Assessed"}
+            # Red List Assessed
           </th>
         )}
         {isVisible("outdated") && (
           <th className={scopeStyleColumns ? numericThNoDividerClasses : centeredThClasses}>
-            {/* Country View's half-width column has no room for the full
-                "(10+ yrs old)" qualifier + info icon on one non-wrapping line
-                (inline-flex forces it to stay unwrapped) — shortened here,
-                same info still available via the plain-mode header. */}
-            {scopeStyleColumns ? (
-              "# Needs Updating"
-            ) : (
-              <span className="inline-flex items-center gap-1"># Needs Updating (10+ yrs old) <OutdatedInfoIcon /></span>
-            )}
+            {/* The scope views used to shorten this to "# Needs Updating": the
+                full qualifier + info icon wouldn't fit on one non-wrapping line
+                in Country View's half-width column. Merging the old separate
+                "% Needs Updating" column into this one gave that width back, so
+                both scope views now carry the same header as the plain table —
+                a column that means the same thing shouldn't be named two ways
+                depending on which view you reached it from. */}
+            <span className="inline-flex items-center gap-1"># Needs Updating (10+ yrs old) <OutdatedInfoIcon /></span>
           </th>
         )}
 
