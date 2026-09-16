@@ -19,6 +19,7 @@ import { IUCN_SOURCE_URL } from "@/config/taxonomy-tree";
 import { isLiveDrilldownNode, nextDynamicRank, isDynamicNodeId, dynamicNodeDisplayName, dynamicNodeFilter, dynamicNodeRankInfo, parseDynamicNodeId } from "@/lib/dynamic-taxon";
 import type { RedListSpecies } from "@/hooks/useRedListSpeciesQuery";
 import { prettifyQs } from "@/lib/query-string";
+import { buildBreakdownIssueUrl } from "@/lib/col-breakdown-issue";
 import type { LayoutMode } from "@/hooks/useFilterParams";
 import { sisRowKey } from "@/lib/species-row-key";
 // Reason labels are shared with the main dashboard's taxonomic-revision flag —
@@ -1305,6 +1306,15 @@ function DescribedInfoIcon({ nodeId, source, breakdown }: { nodeId: string; sour
   // reader to infer from an otherwise-unremarkable row — a real, sizeable
   // bucket that looks exactly like any other order/family/genus bucket
   // without this note.
+  // A dynamic node's rank is its own deepest segment (e.g. "Family" for a
+  // family-level node), not primaryFilterRank's "first set dimension" pick —
+  // wrong for a multi-dimension dynamic filter (order+family both set) since
+  // that always picks "order" first. Hoisted out of the table's own render
+  // below because the "suggest a correction" link needs the same rank label for
+  // the issue's first column header.
+  const breakdownDim = isDynamicNodeId(nodeId) ? dynamicNodeRankInfo(nodeId) : primaryFilterRank(filter);
+  const breakdownGroupLabel = node?.name ?? dynamicNodeDisplayName(nodeId);
+
   const dynSegments = isDynamicNodeId(nodeId) ? parseDynamicNodeId(nodeId)?.segments : undefined;
   const isUnclassifiedBucket = Boolean(dynSegments?.length && dynSegments[dynSegments.length - 1].value === "");
   const unclassifiedRankLabel = isUnclassifiedBucket ? dynamicNodeRankInfo(nodeId)!.label.toLowerCase() : "";
@@ -1387,22 +1397,15 @@ function DescribedInfoIcon({ nodeId, source, breakdown }: { nodeId: string; sour
               {liveBreakdownError && (
                 <p className="text-zinc-300">Species-level detail unavailable right now.</p>
               )}
-              {effectiveBreakdown?.length ? (() => {
-                // A dynamic node's rank is its own deepest segment (e.g. "Family"
-                // for a family-level node), not primaryFilterRank's "first set
-                // dimension" pick — wrong for a multi-dimension dynamic filter
-                // (order+family both set) since that always picks "order" first.
-                const dim = isDynamicNodeId(nodeId) ? dynamicNodeRankInfo(nodeId) : primaryFilterRank(filter);
-                return dim ? (
-                  <BreakdownList
-                    rank={dim.rank}
-                    label={dim.label}
-                    breakdown={effectiveBreakdown}
-                    onOpenPanel={setActivePanel}
-                    liveColIds={liveColIds}
-                  />
-                ) : null;
-              })() : null}
+              {effectiveBreakdown?.length && breakdownDim ? (
+                <BreakdownList
+                  rank={breakdownDim.rank}
+                  label={breakdownDim.label}
+                  breakdown={effectiveBreakdown}
+                  onOpenPanel={setActivePanel}
+                  liveColIds={liveColIds}
+                />
+              ) : null}
               <p className="mt-1.5 text-zinc-300">
                 Source:{" "}
                 <a href={COL_RELEASE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200 underline">
@@ -1410,6 +1413,36 @@ function DescribedInfoIcon({ nodeId, source, breakdown }: { nodeId: string; sour
                 </a>
                 .
               </p>
+              {/* The reader most likely to spot a wrong breakdown is a specialist
+                  group member who knows the group's real circumscription — until
+                  now they had nowhere to say so from. Opens GitHub's new-issue
+                  form with the table above already written out and a blank "we
+                  believe it should be" section; nothing is submitted until they
+                  edit it and press the button there. */}
+              {effectiveBreakdown?.length && breakdownDim ? (
+                <p className="mt-1">
+                  <a
+                    href={buildBreakdownIssueUrl({
+                      groupLabel: breakdownGroupLabel,
+                      rankLabel: breakdownDim.label,
+                      rows: effectiveBreakdown.map((b) => ({
+                        name: breakdownDisplayName(breakdownDim.rank, b.name),
+                        count: b.count,
+                        trueAssessed: b.trueAssessed,
+                        noMatch: b.noMatchIds.length,
+                        neCount: b.neCount,
+                      })),
+                      sourceLabel: COL_RELEASE_LABEL,
+                      pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-300 hover:text-blue-200 underline"
+                  >
+                    Breakdown look wrong? Suggest a correction
+                  </a>
+                </p>
+              ) : null}
             </>
           )}
         </div>,
