@@ -1,3 +1,32 @@
+export const GITHUB_REPO_URL = "https://github.com/shaneweisz/redlist-dashboard";
+
+/**
+ * Prefilled GitHub "new issue" links — the dashboard's way of handing someone a
+ * draft they can edit and submit themselves.
+ *
+ * Deliberately plain links with the body in the query string, not API calls: no
+ * token to hold, no auth to build, no endpoint that can be spammed, and the
+ * reporter reviews and edits the text on GitHub before anything is submitted.
+ */
+
+/**
+ * The general "something to say" draft, from the site footer. Kept almost empty
+ * on purpose — the footer link is offered for questions, feedback and feature
+ * requests alike, so anything more specific than a prompt would be putting words
+ * in the reporter's mouth. No title is prefilled either: an empty one leaves
+ * GitHub's own placeholder showing and its submit button disabled until they
+ * write one, which is better than a vague "Feedback" they have to clear.
+ */
+export function buildGeneralIssueUrl({ pageUrl, repoUrl }: { pageUrl?: string; repoUrl?: string } = {}): string {
+  const body = [
+    "<!-- A question, something that looks wrong, or a feature you'd like —",
+    "     a sentence is plenty. -->",
+    "",
+    ...(pageUrl ? ["", "---", "", `From ${pageUrl}`] : []),
+  ].join("\n");
+  return `${repoUrl ?? GITHUB_REPO_URL}/issues/new?${new URLSearchParams({ body }).toString()}`;
+}
+
 /**
  * Builds a prefilled "this breakdown looks wrong" GitHub issue URL from a
  * # Described Species popover.
@@ -5,15 +34,9 @@
  * The audience is a specialist group member who knows their taxonomy far better
  * than this dashboard does and has just noticed the described-species breakdown
  * covering the wrong families — the single most likely correction anyone will
- * ever want to send us, and until now there was nowhere to send it from.
- *
- * Deliberately a plain GitHub "new issue" link with the body prefilled via query
- * string, not an API call: no token to hold, no auth to build, no endpoint that
- * can be spammed, and the reporter reviews and edits the text on GitHub before
- * anything is submitted. What they see in the popover is what lands in the issue.
+ * ever want to send us, and until now there was nowhere to send it from. What
+ * they see in the popover is what lands in the issue.
  */
-
-export const GITHUB_REPO_URL = "https://github.com/shaneweisz/redlist-dashboard";
 
 export interface BreakdownIssueRow {
   /** Display name, already resolved (e.g. "Syngnathidae"). */

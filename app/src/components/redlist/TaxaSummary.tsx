@@ -19,7 +19,7 @@ import { IUCN_SOURCE_URL } from "@/config/taxonomy-tree";
 import { isLiveDrilldownNode, nextDynamicRank, isDynamicNodeId, dynamicNodeDisplayName, dynamicNodeFilter, dynamicNodeRankInfo, parseDynamicNodeId } from "@/lib/dynamic-taxon";
 import type { RedListSpecies } from "@/hooks/useRedListSpeciesQuery";
 import { prettifyQs } from "@/lib/query-string";
-import { buildBreakdownIssueUrl } from "@/lib/col-breakdown-issue";
+import { buildBreakdownIssueUrl } from "@/lib/github-issue";
 import type { LayoutMode } from "@/hooks/useFilterParams";
 import { sisRowKey } from "@/lib/species-row-key";
 // Reason labels are shared with the main dashboard's taxonomic-revision flag —
@@ -1437,8 +1437,9 @@ function DescribedInfoIcon({ nodeId, source, breakdown }: { nodeId: string; sour
                     })}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-300 hover:text-blue-200 underline"
+                    className="text-blue-300 hover:text-blue-200 underline inline-flex items-center gap-1.5"
                   >
+                    <FaFlag size={9} aria-hidden className="shrink-0" />
                     Breakdown look wrong? Suggest a correction
                   </a>
                 </p>
