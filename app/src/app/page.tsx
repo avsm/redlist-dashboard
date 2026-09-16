@@ -167,7 +167,7 @@ export default function RedListPage() {
             >
               sw984@cam.ac.uk
             </a>
-            . Or even easier,{" "}
+            . Or better yet,{" "}
             {/* href carries the plain draft so this is a real link — middle-click,
                 "copy link address" and a JS-less load all still work. The click
                 handler re-builds it with the URL the reader is actually on, which
