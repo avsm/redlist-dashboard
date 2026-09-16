@@ -79,6 +79,25 @@ PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers-node22 node verify.mjs
 
 Write the driver script inside `app/` (not `/tmp`) so Node's module resolution finds `playwright` in `app/node_modules` — otherwise you'll hit `ERR_MODULE_NOT_FOUND`. Delete it when done; it's a scratch file, not something to commit.
 
+**A browser that launches but can't open a page is a corrupt install, not a GPU
+flag.** Symptom: `chromium.launch()` succeeds and reports a version, then
+`newPage()` fails with `Target page, context or browser has been closed`. With
+`DEBUG=pw:browser` the real cause shows up as `GPU process exited unexpectedly:
+exit_code=5` repeating until `GPU process isn't usable. Goodbye.` — but no flag
+combination fixes it (`--disable-gpu` fails identically, which is the tell: if
+disabling the GPU doesn't help, the GPU isn't the problem). `playwright install`
+reporting the expected revision as already present doesn't mean the bytes are
+intact. Reinstall into a *fresh* `PLAYWRIGHT_BROWSERS_PATH` — installing over the
+existing directory is what leaves it half-broken in the first place:
+
+```bash
+mkdir -p /tmp/pw-browsers-node22b
+PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers-node22b npx playwright install --no-shell chromium
+```
+
+Then check WebGL actually works before trusting a map screenshot:
+`await page.evaluate(() => !!document.createElement("canvas").getContext("webgl2"))`.
+
 ## Gotchas hit in practice
 
 - **React controlled inputs**: use Playwright's `fill`/`click`, not `eval el.value = ...` — the latter skips React's onChange.
