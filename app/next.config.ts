@@ -192,7 +192,13 @@ const nextConfig: NextConfig = {
     // gated on assessed.parquet NOT existing locally.
     "/api/redlist/taxa-summary": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
     "/api/redlist/taxa-subgroups": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
-    "/api/redlist/realm-stats": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/*.parquet", ...COL_ARTIFACTS],
+    // Reads the small precomputed realm-stats.json, falling back to a live DuckDB
+    // query over assessed.parquet in R2 when a sync predates that file — so it
+    // keeps the DuckDB trace above, and the same CRITICAL parquet exclusion as
+    // /api/redlist/species (USE_R2 is gated on assessed.parquet NOT existing
+    // locally). The two children-summaries files it never opens are pruned, same
+    // as /api/redlist/country-stats.
+    "/api/redlist/realm-stats": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/table1a-children-summaries.json", "**/data/ssc-group-children-summaries.json", "**/data/*.parquet", ...COL_ARTIFACTS],
     // Reads only the small precomputed country-stats.json (no DuckDB — this is
     // a static aggregate, not a live query, see species-store.ts's getCountryStats).
     "/api/redlist/country-stats": ["**/data/search-index.json", "**/data/redlist/**", "**/data/gbif/**", "**/data/mapping.csv", "**/data/table1a-children-summaries.json", "**/data/ssc-group-children-summaries.json", "**/data/*.parquet", ...COL_ARTIFACTS],

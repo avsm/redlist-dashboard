@@ -3759,7 +3759,7 @@ export default function RedListView({ viewMode = "reassessments", onViewModeChan
       onSelect={handleRealmDrilldown}
     />
   ) : (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 h-[116px] flex items-center justify-center">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 h-[164px] flex items-center justify-center">
       <Spinner className="h-6 w-6" />
     </div>
   );
