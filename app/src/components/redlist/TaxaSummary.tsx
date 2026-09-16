@@ -3527,7 +3527,7 @@ export default function TaxaSummary({ onToggleTaxon, selectedTaxa, selectedSubgr
         <span className="hidden sm:inline pl-3 md:pl-4 text-sm text-zinc-400 dark:text-zinc-500">
           {countryMode ? "Click a country to view its species, Cmd/Ctrl+click to multi-select."
             : realmMode ? "Click a realm to narrow the table to it, Cmd/Ctrl+click to multi-select."
-            : "Click to filter, use charts and search to explore species. Cmd/Ctrl+click to multi-select, Shift+drag across a chart to select a range."}
+            : "Click to filter, use charts and search to explore species. Cmd/Ctrl+click to multi-select."}
         </span>
         <span className="inline-flex items-center gap-1.5 ml-auto pr-3 sm:pr-0">
           {/* Assessed/Not Evaluated toggle used to be paired here too, but it's
