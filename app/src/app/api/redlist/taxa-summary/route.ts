@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTaxaSummary } from "@/lib/data/species-store";
-import { getCountryTaxaSummary } from "@/lib/data/country-taxa-summary-duckdb";
+import { getScopedTaxaSummary, scopeWhere } from "@/lib/data/scoped-taxa-summary-duckdb";
 import { findNode, getTaxonGroupsForNode } from "@/lib/taxonomy-utils";
 import { getView } from "@/config/taxonomy-views";
 import { CACHE_1H } from "@/lib/cache-headers";
@@ -43,16 +43,20 @@ function mergeByCategory(
 
 export async function GET(request: NextRequest) {
   try {
-    // Country-scoped rows carry zeroed estimatedDescribed/gbif*/col* fields (no
-    // country dimension exists in that data — see country-taxa-summary-duckdb.ts's
-    // doc comment). `countryScoped` tells the client to hide those columns outright
+    // Scoped rows (by country and/or realm) carry zeroed estimatedDescribed/gbif*/col*
+    // fields — neither dimension exists in that data, see scoped-taxa-summary-duckdb.ts's
+    // doc comment. `scoped` tells the client to hide those columns outright
     // rather than render a misleading 0 — TaxaSummary.tsx must gate on this flag,
     // not on a field being present/absent, since every field is still populated.
-    // One or more comma-separated codes — a single country, a whole region's
-    // worth, or an arbitrary multi-select all arrive the same way here.
+    // Both params take one or more comma-separated values — a single country, a
+    // whole region's worth, or an arbitrary multi-select all arrive the same way
+    // here — and the two compose (?country=ID&realm=Marine is marine species in
+    // Indonesia, not the union of the two).
     const countries = request.nextUrl.searchParams.get("country")?.split(",").map((c) => c.trim()).filter(Boolean) ?? [];
-    const data = countries.length > 0 ? await getCountryTaxaSummary(countries) : getTaxaSummary();
-    const countryScoped = countries.length > 0;
+    const realms = request.nextUrl.searchParams.get("realm")?.split(",").map((r) => r.trim()).filter(Boolean) ?? [];
+    const where = scopeWhere(countries, realms);
+    const data = where ? await getScopedTaxaSummary(where) : getTaxaSummary();
+    const scoped = where !== null;
     const rowsByGroup = new Map(
       data.map((row) => [row.table1a_taxon_group, row])
     );
@@ -110,7 +114,7 @@ export async function GET(request: NextRequest) {
           };
         }),
       }));
-      return NextResponse.json({ sections, countryScoped }, { headers: CACHE_1H });
+      return NextResponse.json({ sections, scoped }, { headers: CACHE_1H });
     }
 
     // Default view: use the 8-taxa view from taxonomy tree
@@ -241,7 +245,7 @@ export async function GET(request: NextRequest) {
       allEntry.colNe = perTaxonRows.reduce((s, t) => s + (t.colNe ?? 0), 0);
     }
 
-    return NextResponse.json({ taxa, countryScoped }, { headers: CACHE_1H });
+    return NextResponse.json({ taxa, scoped }, { headers: CACHE_1H });
   } catch (error) {
     console.error("Taxa summary error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";

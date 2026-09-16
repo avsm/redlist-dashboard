@@ -28,6 +28,7 @@ import { EXCLUDED_DOMESTICATED_GBIF_KEYS } from "../src/lib/data/taxonomy-consta
 import { NODE_INDEX, hasChildren, matchesFilter } from "../src/lib/taxonomy-utils";
 import type { TaxonomyNode } from "../src/config/taxonomy-tree";
 import type { NodeSummary } from "../src/lib/data/species-store";
+import { REALMS } from "../src/lib/data/scoped-taxa-summary-duckdb";
 import {
   COL_SPECIES_NAME_OVERRIDES,
   COL_DOMESTIC_EXCLUDE_NAMES,
@@ -275,6 +276,13 @@ export async function run(): Promise<void> {
   // live DuckDB queries — see country-taxa-summary-duckdb.ts), the landing map
   // is always "all species" scope, so this never needs to vary per request.
   const countryStats = new Map<string, { total_assessed: number; outdated: number }>();
+  // Per-realm tally, same shape and same reason as countryStats above: the Realm
+  // view's landing chart is always all-species scope, so a static aggregate beats
+  // a DB round trip on every entry to the view. A species assessed in two realms
+  // is counted in each, so these do NOT sum to realmTotalAssessed — which is why
+  // that total is tracked separately rather than derived from them.
+  const realmStats = new Map<string, { total_assessed: number; outdated: number }>();
+  let realmTotalAssessed = 0;
 
   // Load mapping to determine which GBIF species are linked to redlist entries
   const mapping = readMappingCsv();
@@ -318,6 +326,15 @@ export async function run(): Promise<void> {
         entry.total_assessed++;
         if (speciesOutdated) entry.outdated++;
         countryStats.set(cc, entry);
+      }
+
+      // Per-realm tally (see realmStats declaration above)
+      realmTotalAssessed++;
+      for (const sys of s.systems) {
+        const entry = realmStats.get(sys) ?? { total_assessed: 0, outdated: 0 };
+        entry.total_assessed++;
+        if (speciesOutdated) entry.outdated++;
+        realmStats.set(sys, entry);
       }
     }
 
@@ -379,6 +396,22 @@ export async function run(): Promise<void> {
   const countryStatsOutputPath = path.join(DATA_DIR, "country-stats.json");
   fs.writeFileSync(countryStatsOutputPath, JSON.stringify(countryStatsObj, null, 2) + "\n");
   console.log(`Wrote ${countryStats.size} countries → ${countryStatsOutputPath}`);
+
+  // Driven off REALMS rather than off the tally's own keys, so the file always
+  // carries all three in a fixed order (a realm with no assessments is a real 0,
+  // not a missing entry) and an unexpected value in the column is dropped rather
+  // than written out as a fourth realm.
+  const realmStatsObj = {
+    realms: REALMS.map((realm) => ({
+      realm,
+      species: realmStats.get(realm)?.total_assessed ?? 0,
+      outdated: realmStats.get(realm)?.outdated ?? 0,
+    })),
+    totalAssessed: realmTotalAssessed,
+  };
+  const realmStatsOutputPath = path.join(DATA_DIR, "realm-stats.json");
+  fs.writeFileSync(realmStatsOutputPath, JSON.stringify(realmStatsObj, null, 2) + "\n");
+  console.log(`Wrote ${realmStatsObj.realms.length} realms → ${realmStatsOutputPath}`);
 
   // ─── Second pass: precompute node children summaries ──────────────
   console.log("\nComputing node children summaries...");

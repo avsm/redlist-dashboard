@@ -10,6 +10,7 @@ import { AuthStatus } from "../components/AuthStatus";
 import { useBrand } from "../components/BrandProvider";
 import { parseParams, type ViewMode } from "../hooks/useFilterParams";
 import { prettifyQs } from "../lib/query-string";
+import { buildGeneralIssueUrl } from "../lib/github-issue";
 import { SpeciesCacheProvider } from "../contexts/SpeciesCacheContext";
 
 // Dynamically import view component
@@ -71,7 +72,8 @@ export default function RedListPage() {
           the outer wrapper) so that when page content is short — e.g. Country
           View's map-only landing state — it's forced to fill exactly one
           viewport, with flex-1 letting the tallest child (the map, in that
-          case) absorb the slack. Only the "Questions or feedback" line lives
+          case) absorb the slack. Only the "Questions, feedback, or feature
+          requests" line lives
           inside it as the footer; everything after that (the source-credits
           paragraph, the privacy policy link) is a separate sibling below,
           OUTSIDE this min-h-screen box, so it always starts exactly at the
@@ -149,7 +151,7 @@ export default function RedListPage() {
 
         <footer className="max-w-xl mx-auto w-full shrink-0 mt-2 pb-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">
           <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
-            Questions or feedback? Contact{" "}
+            Questions, feedback, or feature requests? Contact{" "}
             <a
               href="https://www.shaneweisz.com/"
               target="_blank"
@@ -165,7 +167,31 @@ export default function RedListPage() {
             >
               sw984@cam.ac.uk
             </a>
-            .
+            . Or better yet,{" "}
+            {/* href carries the plain draft so this is a real link — middle-click,
+                "copy link address" and a JS-less load all still work. The click
+                handler re-builds it with the URL the reader is actually on, which
+                can't go in the href itself: this component server-renders, and a
+                href that differs between server and client is a hydration
+                mismatch. Reading location at click time also means it reflects
+                the current filters rather than whatever was in the bar at mount. */}
+            <a
+              href={buildGeneralIssueUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(
+                  buildGeneralIssueUrl({ pageUrl: window.location.href }),
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+              }}
+              className="underline hover:text-zinc-600 dark:hover:text-zinc-300"
+            >
+              create a GitHub Issue
+            </a>
+            . I&apos;ll take a look as soon as I can.
           </p>
         </footer>
       </div>
